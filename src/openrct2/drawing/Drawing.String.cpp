@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -8,15 +8,16 @@
  *****************************************************************************/
 
 #include "../Context.h"
-#include "../common.h"
 #include "../config/Config.h"
+#include "../core/CodepointView.hpp"
 #include "../core/String.hpp"
+#include "../core/UTF8.h"
+#include "../core/UnicodeChar.h"
 #include "../drawing/IDrawingContext.h"
 #include "../drawing/IDrawingEngine.h"
 #include "../drawing/Text.h"
 #include "../interface/Viewport.h"
 #include "../localisation/Formatting.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/LocalisationService.h"
 #include "../platform/Platform.h"
 #include "../sprites.h"
@@ -260,7 +261,7 @@ int32_t GfxWrapString(u8string_view text, int32_t width, FontStyle fontStyle, u8
 void GfxDrawStringLeftCentred(
     DrawPixelInfo& dpi, StringId format, void* args, ColourWithFlags colour, const ScreenCoordsXY& coords)
 {
-    char buffer[CommonTextBufferSize];
+    char buffer[512];
     auto bufferPtr = buffer;
     FormatStringLegacy(bufferPtr, sizeof(buffer), format, args);
     int32_t height = StringGetHeightRaw(bufferPtr, FontStyle::Medium);
@@ -331,7 +332,7 @@ void DrawStringCentredRaw(
     for (int32_t i = 0; i <= numLines; i++)
     {
         int32_t width = GfxGetStringWidth(text, fontStyle);
-        DrawText(dpi, screenCoords - ScreenCoordsXY{ width / 2, 0 }, { TEXT_COLOUR_254, fontStyle }, text);
+        DrawText(dpi, screenCoords - ScreenCoordsXY{ width / 2, 0 }, { kTextColour254, fontStyle }, text);
 
         const utf8* ch = text;
         const utf8* nextCh = nullptr;
@@ -462,7 +463,7 @@ void DrawNewsTicker(
         }
 
         screenCoords = { coords.x - halfWidth, lineY };
-        DrawText(dpi, screenCoords, { TEXT_COLOUR_254, FontStyle::Small }, buffer);
+        DrawText(dpi, screenCoords, { kTextColour254, FontStyle::Small }, buffer);
 
         if (numCharactersDrawn > numCharactersToDraw)
         {
@@ -591,8 +592,8 @@ static void TTFProcessFormatCode(DrawPixelInfo& dpi, const FmtString::Token& tok
         }
         case FormatToken::InlineSprite:
         {
-            auto imageId = ImageId::FromUInt32(token.parameter);
-            auto g1 = GfxGetG1Element(imageId.GetIndex());
+            auto imageId = ImageId(token.parameter);
+            auto g1 = GfxGetG1Element(imageId);
             if (g1 != nullptr && g1->width <= 32 && g1->height <= 32)
             {
                 if (!(info->flags & TEXT_DRAW_FLAG_NO_DRAW))
@@ -673,15 +674,15 @@ static void TTFProcessStringLiteral(DrawPixelInfo& dpi, std::string_view text, T
                     // This error suppression abomination is here to suppress https://github.com/OpenRCT2/OpenRCT2/issues/17371.
                     // Additionally, we have to suppress the error for the error suppression... :'-(
                     // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105937 is fixed in GCC13
-#    if defined(__GNUC__) && !defined(__clang__)
-#        pragma GCC diagnostic push
-#        pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#    endif
+    #if defined(__GNUC__) && !defined(__clang__)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+    #endif
                     auto len = it.GetIndex() - ttfRunIndex.value();
                     TTFDrawStringRawTTF(dpi, text.substr(ttfRunIndex.value(), len), info);
-#    if defined(__GNUC__) && !defined(__clang__)
-#        pragma GCC diagnostic pop
-#    endif
+    #if defined(__GNUC__) && !defined(__clang__)
+        #pragma GCC diagnostic pop
+    #endif
                     ttfRunIndex = std::nullopt;
                 }
 
@@ -748,7 +749,7 @@ static void TTFProcessString(DrawPixelInfo& dpi, std::string_view text, TextDraw
 
 static void TTFProcessInitialColour(ColourWithFlags colour, TextDrawInfo* info)
 {
-    if (colour.colour != TEXT_COLOUR_254 && colour.colour != TEXT_COLOUR_255)
+    if (colour.colour != kTextColour254 && colour.colour != kTextColour255)
     {
         info->flags &= ~(TEXT_DRAW_FLAG_INSET | TEXT_DRAW_FLAG_OUTLINE);
         if (colour.hasFlag(ColourFlag::withOutline))

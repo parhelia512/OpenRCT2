@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -15,7 +15,8 @@
 #include <openrct2/actions/RideDemolishAction.h>
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/Park.h>
 
@@ -24,23 +25,23 @@ namespace OpenRCT2::Ui::Windows
     static constexpr int32_t WW = 200;
     static constexpr int32_t WH = 100;
 
-    // clang-format off
-enum WindowRideDemolishWidgetIdx
-{
-    WIDX_BACKGROUND,
-    WIDX_TITLE,
-    WIDX_CLOSE,
-    WIDX_DEMOLISH,
-    WIDX_CANCEL
-};
+    enum WindowRideDemolishWidgetIdx
+    {
+        WIDX_BACKGROUND,
+        WIDX_TITLE,
+        WIDX_CLOSE,
+        WIDX_DEMOLISH,
+        WIDX_CANCEL
+    };
 
-static Widget window_ride_demolish_widgets[] =
-{
-    WINDOW_SHIM_WHITE(STR_DEMOLISH_RIDE, WW, WH),
-    MakeWidget({     10, WH - 22}, {85, 14}, WindowWidgetType::Button, WindowColour::Primary, STR_DEMOLISH          ),
-    MakeWidget({WW - 95, WH - 22}, {85, 14}, WindowWidgetType::Button, WindowColour::Primary, STR_SAVE_PROMPT_CANCEL),
-    kWidgetsEnd,
-};
+    // clang-format off
+    static Widget window_ride_demolish_widgets[] =
+    {
+        WINDOW_SHIM_WHITE(STR_DEMOLISH_RIDE, WW, WH),
+        MakeWidget({     10, WH - 22}, {85, 14}, WindowWidgetType::Button, WindowColour::Primary, STR_DEMOLISH          ),
+        MakeWidget({WW - 95, WH - 22}, {85, 14}, WindowWidgetType::Button, WindowColour::Primary, STR_SAVE_PROMPT_CANCEL),
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class DemolishRidePromptWindow final : public Window
@@ -106,7 +107,8 @@ static Widget window_ride_demolish_widgets[] =
         WindowBase* w;
         DemolishRidePromptWindow* newWindow;
 
-        w = WindowFindByClass(WindowClass::DemolishRidePrompt);
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        w = windowMgr->FindByClass(WindowClass::DemolishRidePrompt);
         if (w != nullptr)
         {
             auto windowPos = w->windowPos;

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,12 +9,11 @@
 
 #pragma once
 
-#include "../common.h"
 #include "../core/Money.hpp"
 #include "../entity/Litter.h"
-#include "../util/Util.h"
 
 struct Ride;
+
 enum class PeepThoughtType : uint8_t;
 
 enum class ShopItem : uint8_t

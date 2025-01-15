@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,51 +11,57 @@
 
 #include <openrct2-ui/interface/Window.h>
 #include <openrct2/Identifiers.h>
-#include <openrct2/common.h>
-#include <openrct2/ride/Ride.h>
-#include <openrct2/windows/TileInspectorGlobals.h>
 #include <string_view>
 
-// TODO: only for WINDOW_SHIM_RAW below; we can do better.
-#include "../UiStringIds.h"
-
+struct ObjectEntryDescriptor;
 struct Peep;
+struct Ride;
+struct RideSelection;
 struct TileElement;
-struct Vehicle;
 struct TrackDesign;
+struct Vehicle;
+
 enum class GuestListFilterType : int32_t;
 enum class ScatterToolDensity : uint8_t;
-using loadsave_callback = void (*)(int32_t result, const utf8* path);
-using scenarioselect_callback = void (*)(const utf8* path);
+
+using LoadSaveCallback = void (*)(int32_t result, const utf8* path);
+using ScenarioSelectCallback = void (*)(const utf8* path);
 
 namespace OpenRCT2::Ui::Windows
 {
     extern bool gWindowSceneryScatterEnabled;
     extern uint16_t gWindowSceneryScatterSize;
     extern ScatterToolDensity gWindowSceneryScatterDensity;
-    extern uint8_t gWindowSceneryPaintEnabled;
     extern uint8_t gWindowSceneryRotation;
-    extern colour_t gWindowSceneryPrimaryColour;
-    extern colour_t gWindowScenerySecondaryColour;
-    extern colour_t gWindowSceneryTertiaryColour;
     extern bool gWindowSceneryEyedropperEnabled;
+    extern bool gDisableErrorWindowSound;
 
     WindowBase* AboutOpen();
     void WindowCampaignRefreshRides();
     WindowBase* ChangelogOpen(int personality);
     WindowBase* CheatsOpen();
+
     WindowBase* ClearSceneryOpen();
+    void ToggleClearSceneryWindow();
+
     WindowBase* CustomCurrencyOpen();
     WindowBase* DebugPaintOpen();
     WindowBase* EditorInventionsListOpen();
     WindowBase* EditorMainOpen();
     WindowBase* EditorObjectiveOptionsOpen();
     WindowBase* EditorScenarioOptionsOpen();
+
     WindowBase* FootpathOpen();
     void WindowFootpathResetSelectedPath();
+    void ToggleFootpathWindow();
+
     WindowBase* GuestOpen(Peep* peep);
+
     WindowBase* LandOpen();
+    void ToggleLandWindow();
+
     WindowBase* LandRightsOpen();
+
     WindowBase* MainOpen();
     WindowBase* MapgenOpen();
     WindowBase* MultiplayerOpen();
@@ -76,11 +82,16 @@ namespace OpenRCT2::Ui::Windows
     WindowBase* TitleLogoOpen();
     WindowBase* TitleMenuOpen();
     WindowBase* TitleOptionsOpen();
+    WindowBase* TitleVersionOpen();
     WindowBase* ViewportOpen();
+
     WindowBase* WaterOpen();
+    void ToggleWaterWindow();
+
     WindowBase* ViewClippingOpen();
     WindowBase* TransparencyOpen();
     WindowBase* AssetPacksOpen();
+    WindowBase* EditorParkEntranceOpen();
 
     // WC_FINANCES
     WindowBase* FinancesOpen();
@@ -107,7 +118,7 @@ namespace OpenRCT2::Ui::Windows
     WindowBase* GuestListOpen();
     WindowBase* GuestListOpenWithFilter(GuestListFilterType type, int32_t index);
     WindowBase* StaffFirePromptOpen(Peep* peep);
-    WindowBase* ScenarioselectOpen(scenarioselect_callback callback);
+    WindowBase* ScenarioselectOpen(ScenarioSelectCallback callback);
     WindowBase* ScenarioselectOpen(std::function<void(std::string_view)> callback);
 
     WindowBase* ErrorOpen(StringId title, StringId message, const class Formatter& formatter, bool autoClose = false);
@@ -116,6 +127,9 @@ namespace OpenRCT2::Ui::Windows
     WindowBase* LoadsaveOpen(
         int32_t type, std::string_view defaultPath, std::function<void(int32_t result, std::string_view)> callback,
         TrackDesign* trackDesign);
+    void WindowLoadSaveInputKey(WindowBase* w, uint32_t keycode);
+    void WindowLoadSaveOverwritePromptInputKey(WindowBase* w, uint32_t keycode);
+
     WindowBase* TrackPlaceOpen(const struct TrackDesignFileRef* tdFileRef);
     WindowBase* TrackManageOpen(struct TrackDesignFileRef* tdFileRef);
 
@@ -163,11 +177,11 @@ namespace OpenRCT2::Ui::Windows
     WindowBase* MazeConstructionOpen();
     void WindowMazeConstructionUpdatePressedWidgets();
 
-    WindowBase* NetworkStatusOpen(const std::string& text, close_callback onClose);
+    WindowBase* NetworkStatusOpen(const std::string& text, CloseCallback onClose);
     WindowBase* NetworkStatusOpenPassword();
     void WindowNetworkStatusClose();
 
-    WindowBase* ProgressWindowOpen(const std::string& text, close_callback onClose = nullptr);
+    WindowBase* ProgressWindowOpen(const std::string& text, CloseCallback onClose = nullptr);
     void ProgressWindowSet(uint32_t currentProgress, uint32_t totalCount, StringId format = STR_NONE);
     void ProgressWindowClose();
 
@@ -188,11 +202,10 @@ namespace OpenRCT2::Ui::Windows
     WindowBase* RideConstructionOpen();
     void WindowRideConstructionUpdateActiveElementsImpl();
     void WindowRideConstructionUpdateEnabledTrackPieces();
+    void RideRestoreProvisionalTrackPiece();
+    void RideRemoveProvisionalTrackPiece();
 
     WindowBase* TopToolbarOpen();
-    bool LandToolIsActive();
-    bool ClearSceneryToolIsActive();
-    bool WaterToolIsActive();
 
     WindowBase* SceneryOpen();
     void WindowScenerySetSelectedItem(
@@ -203,6 +216,7 @@ namespace OpenRCT2::Ui::Windows
     void WindowSceneryInit();
     void WindowSceneryResetSelectedSceneryItems();
     const ScenerySelection WindowSceneryGetTabSelection();
+    void ToggleSceneryWindow();
 
     extern uint8_t gToolbarDirtyFlags;
     WindowBase* GameBottomToolbarOpen();
@@ -224,15 +238,4 @@ namespace OpenRCT2::Ui::Windows
     WindowBase* SceneryScatterOpen();
     WindowBase* PatrolAreaOpen(EntityId staffId);
     EntityId WindowPatrolAreaGetCurrentStaffId();
-
-    // clang-format off
-#define WINDOW_SHIM_RAW(TITLE, WIDTH, HEIGHT, CLOSE_STR) \
-    { WindowWidgetType::Frame,    0,  0,          WIDTH - 1, 0, HEIGHT - 1, 0xFFFFFFFF,  STR_NONE }, \
-    { WindowWidgetType::Caption,  0,  1,          WIDTH - 2, 1, 14,         TITLE,       STR_WINDOW_TITLE_TIP }, \
-    { WindowWidgetType::CloseBox, 0,  WIDTH - 13, WIDTH - 3, 2, 13,         CLOSE_STR, STR_CLOSE_WINDOW_TIP }
-
-#define WINDOW_SHIM(TITLE, WIDTH, HEIGHT) WINDOW_SHIM_RAW(TITLE, WIDTH, HEIGHT, STR_CLOSE_X)
-#define WINDOW_SHIM_WHITE(TITLE, WIDTH, HEIGHT) WINDOW_SHIM_RAW(TITLE, WIDTH, HEIGHT, STR_CLOSE_X_WHITE)
-
-    // clang-format on
 } // namespace OpenRCT2::Ui::Windows

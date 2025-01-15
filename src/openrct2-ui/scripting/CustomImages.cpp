@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,15 +9,15 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "CustomImages.h"
+    #include "CustomImages.h"
 
-#    include "ScGraphicsContext.hpp"
+    #include "ScGraphicsContext.hpp"
 
-#    include <openrct2/Context.h>
-#    include <openrct2/drawing/Image.h>
-#    include <openrct2/drawing/ImageImporter.h>
-#    include <openrct2/drawing/X8DrawingEngine.h>
-#    include <openrct2/scripting/Plugin.h>
+    #include <openrct2/Context.h>
+    #include <openrct2/drawing/Image.h>
+    #include <openrct2/drawing/ImageImporter.h>
+    #include <openrct2/drawing/X8DrawingEngine.h>
+    #include <openrct2/scripting/Plugin.h>
 
 using namespace OpenRCT2::Drawing;
 
@@ -322,7 +322,8 @@ namespace OpenRCT2::Scripting
                 auto importMode = getImportModeFromPalette(pixelData.Palette);
                 auto pngData = DukGetDataFromBufferLikeObject(pixelData.Data);
                 auto image = Imaging::ReadFromBuffer(pngData, imageFormat);
-                ImageImportMeta meta = { { 0, 0 }, palette, ImportFlags::RLE, importMode };
+                uint8_t flags = EnumToFlag(ImportFlags::RLE);
+                ImageImportMeta meta = { { 0, 0 }, palette, flags, importMode };
 
                 ImageImporter importer;
                 auto importResult = importer.Import(image, meta);
@@ -340,7 +341,8 @@ namespace OpenRCT2::Scripting
         return imageData;
     }
 
-    template<> PixelDataKind FromDuk(const DukValue& d)
+    template<>
+    PixelDataKind FromDuk(const DukValue& d)
     {
         if (d.type() == DukValue::Type::STRING)
         {
@@ -357,7 +359,8 @@ namespace OpenRCT2::Scripting
         return PixelDataKind::Unknown;
     }
 
-    template<> PixelDataPaletteKind FromDuk(const DukValue& d)
+    template<>
+    PixelDataPaletteKind FromDuk(const DukValue& d)
     {
         if (d.type() == DukValue::Type::STRING)
         {

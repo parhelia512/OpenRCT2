@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -29,7 +29,6 @@ namespace OpenRCT2::Limits
     static_assert(kMaxVehicleColours >= kMaxCarsPerTrain);
     constexpr uint8_t kMaxCircuitsPerRide = 20;
     constexpr uint8_t kMaxAwards = RCT12::Limits::kMaxAwards;
-    constexpr uint8_t kNumColourSchemes = RCT12::Limits::kNumColourSchemes;
     constexpr uint8_t kDowntimeHistorySize = RCT2::Limits::kDowntimeHistorySize;
     constexpr uint16_t kMaxPeepSpawns = 256;
     constexpr uint16_t kMaxParkEntrances = 256;

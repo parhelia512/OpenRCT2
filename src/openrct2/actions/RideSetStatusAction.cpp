@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,17 +10,18 @@
 #include "RideSetStatusAction.h"
 
 #include "../Cheats.h"
-#include "../common.h"
+#include "../Diagnostic.h"
 #include "../core/MemoryStream.h"
 #include "../interface/Window.h"
 #include "../localisation/Formatter.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../management/Finance.h"
 #include "../ride/Ride.h"
 #include "../ui/UiContext.h"
 #include "../ui/WindowManager.h"
 #include "../world/Park.h"
+
+using namespace OpenRCT2;
 
 static StringId _StatusErrorTitles[] = {
     STR_CANT_CLOSE,
@@ -201,7 +202,8 @@ GameActions::Result RideSetStatusAction::Execute() const
 
             // Fix #3183: Make sure we close the construction window so the ride finishes any editing code before opening
             //            otherwise vehicles get added to the ride incorrectly (such as to a ghost station)
-            WindowBase* constructionWindow = WindowFindByNumber(WindowClass::RideConstruction, _rideIndex.ToUnderlying());
+            auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+            WindowBase* constructionWindow = windowMgr->FindByNumber(WindowClass::RideConstruction, _rideIndex.ToUnderlying());
             if (constructionWindow != nullptr)
             {
                 WindowClose(*constructionWindow);

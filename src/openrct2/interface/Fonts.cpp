@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,12 +9,13 @@
 
 #include "Fonts.h"
 
+#include "../Diagnostic.h"
 #include "../config/Config.h"
+#include "../core/EnumUtils.hpp"
 #include "../core/String.hpp"
 #include "../drawing/TTF.h"
 #include "../localisation/Language.h"
 #include "../localisation/LocalisationService.h"
-#include "../util/Util.h"
 #include "FontFamilies.h"
 
 using namespace OpenRCT2;
@@ -156,7 +157,7 @@ void TryLoadFonts(LocalisationService& localisationService)
     auto currentLanguage = localisationService.GetCurrentLanguage();
     TTFontFamily const* fontFamily = LanguagesDescriptors[currentLanguage].font_family;
 
-    if (fontFamily != FAMILY_OPENRCT2_SPRITE)
+    if (fontFamily != kFamilyOpenRCT2Sprite)
     {
         if (!Config::Get().fonts.FileName.empty())
         {

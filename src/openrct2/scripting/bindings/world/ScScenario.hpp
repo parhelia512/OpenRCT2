@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,14 +11,13 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "../../../Context.h"
-#    include "../../../GameState.h"
-#    include "../../../common.h"
-#    include "../../../core/String.hpp"
-#    include "../../../scenario/Scenario.h"
-#    include "../../../world/Park.h"
-#    include "../../Duktape.hpp"
-#    include "../../ScriptEngine.h"
+    #include "../../../Context.h"
+    #include "../../../GameState.h"
+    #include "../../../core/StringTypes.h"
+    #include "../../../scenario/Scenario.h"
+    #include "../../../world/Park.h"
+    #include "../../Duktape.hpp"
+    #include "../../ScriptEngine.h"
 
 namespace OpenRCT2::Scripting
 {
@@ -232,13 +231,13 @@ namespace OpenRCT2::Scripting
 
         std::string filename_get()
         {
-            return gScenarioFileName;
+            return GetGameState().ScenarioFileName;
         }
 
         void filename_set(const std::string& value)
         {
             ThrowIfGameStateNotMutable();
-            gScenarioFileName = value;
+            GetGameState().ScenarioFileName = value;
         }
 
         std::shared_ptr<ScScenarioObjective> objective_get() const

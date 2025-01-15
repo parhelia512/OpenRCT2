@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -26,7 +26,8 @@ using namespace OpenRCT2;
 static exitcode_t HandleSimulate(CommandLineArgEnumerator* argEnumerator);
 
 const CommandLineCommand CommandLine::SimulateCommands[]{ // Main commands
-                                                          DefineCommand("", "<ticks>", nullptr, HandleSimulate), CommandTableEnd
+                                                          DefineCommand("", "<ticks>", nullptr, HandleSimulate),
+                                                          kCommandTableEnd
 };
 
 static exitcode_t HandleSimulate(CommandLineArgEnumerator* argEnumerator)

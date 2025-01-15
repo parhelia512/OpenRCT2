@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -26,7 +26,7 @@
 #include <iterator>
 #include <vector>
 
-namespace TitleSequenceManager
+namespace OpenRCT2::TitleSequenceManager
 {
     struct PredefinedSequence
     {
@@ -43,7 +43,7 @@ namespace TitleSequenceManager
         { "*OPENRCT2", "openrct2.parkseq", STR_TITLE_SEQUENCE_OPENRCT2 },
     };
 
-    static std::vector<TitleSequenceManagerItem> _items;
+    static std::vector<Item> _items;
 
     static std::string GetNewTitleSequencePath(const std::string& name, bool isZip);
     static size_t FindItemIndexByPath(const std::string& path);
@@ -60,7 +60,7 @@ namespace TitleSequenceManager
         return _items.size();
     }
 
-    const TitleSequenceManagerItem* GetItem(size_t i)
+    const Item* GetItem(size_t i)
     {
         if (i >= _items.size())
         {
@@ -71,8 +71,7 @@ namespace TitleSequenceManager
 
     static size_t FindItemIndexByPath(const std::string& path)
     {
-        size_t index = Collections::IndexOf(
-            _items, [path](const TitleSequenceManagerItem& item) -> bool { return path == item.Path; });
+        size_t index = Collections::IndexOf(_items, [path](const Item& item) -> bool { return path == item.Path; });
         return index;
     }
 
@@ -103,7 +102,7 @@ namespace TitleSequenceManager
         auto newPath = Path::Combine(Path::GetDirectory(oldPath), newName);
         if (item->IsZip)
         {
-            newPath += OpenRCT2::Title::TITLE_SEQUENCE_EXTENSION;
+            newPath += Title::TITLE_SEQUENCE_EXTENSION;
             File::Move(oldPath, newPath);
         }
         else
@@ -138,7 +137,7 @@ namespace TitleSequenceManager
 
     size_t CreateItem(const utf8* name)
     {
-        auto seq = OpenRCT2::Title::CreateTitleSequence();
+        auto seq = Title::CreateTitleSequence();
         seq->Name = name;
         seq->Path = GetNewTitleSequencePath(seq->Name, true);
         seq->IsZip = true;
@@ -159,7 +158,7 @@ namespace TitleSequenceManager
         auto path = Path::Combine(GetUserSequencesPath(), name);
         if (isZip)
         {
-            path += OpenRCT2::Title::TITLE_SEQUENCE_EXTENSION;
+            path += Title::TITLE_SEQUENCE_EXTENSION;
         }
         return path;
     }
@@ -169,25 +168,24 @@ namespace TitleSequenceManager
         auto filename = Path::GetFileName(path);
         for (size_t i = 0; i < std::size(PredefinedSequences); i++)
         {
-            if (String::IEquals(filename, PredefinedSequences[i].Filename))
+            if (String::iequals(filename, PredefinedSequences[i].Filename))
             {
                 return i;
             }
         }
-        return PREDEFINED_INDEX_CUSTOM;
+        return kPredefinedIndexCustom;
     }
 
     static void SortSequences()
     {
         // Sort sequences by predefined index and then name
-        std::sort(
-            _items.begin(), _items.end(), [](const TitleSequenceManagerItem& a, const TitleSequenceManagerItem& b) -> bool {
-                if (a.PredefinedIndex != b.PredefinedIndex)
-                {
-                    return a.PredefinedIndex < b.PredefinedIndex;
-                }
-                return String::Compare(a.Name, b.Name, true) < 0;
-            });
+        std::sort(_items.begin(), _items.end(), [](const Item& a, const Item& b) -> bool {
+            if (a.PredefinedIndex != b.PredefinedIndex)
+            {
+                return a.PredefinedIndex < b.PredefinedIndex;
+            }
+            return String::compare(a.Name, b.Name, true) < 0;
+        });
     }
 
     void Scan()
@@ -215,9 +213,9 @@ namespace TitleSequenceManager
 
     static void AddSequence(const std::string& scanPath)
     {
-        TitleSequenceManagerItem item{};
+        Item item{};
 
-        if (String::IEquals(Path::GetExtension(scanPath), u8".txt"))
+        if (String::iequals(Path::GetExtension(scanPath), u8".txt"))
         {
             // If we are given a .txt file, set the path to the containing directory
             item.Path = Path::GetDirectory(scanPath);
@@ -233,7 +231,7 @@ namespace TitleSequenceManager
 
         item.PredefinedIndex = GetPredefinedIndex(item.Path);
 
-        if (item.PredefinedIndex != PREDEFINED_INDEX_CUSTOM)
+        if (item.PredefinedIndex != kPredefinedIndexCustom)
         {
             StringId stringId = PredefinedSequences[item.PredefinedIndex].StringId;
             item.Name = LanguageGetString(stringId);
@@ -256,133 +254,103 @@ namespace TitleSequenceManager
 
     static std::string GetDataSequencesPath()
     {
-        auto env = OpenRCT2::GetContext()->GetPlatformEnvironment();
-        return env->GetDirectoryPath(OpenRCT2::DIRBASE::OPENRCT2, OpenRCT2::DIRID::SEQUENCE);
+        auto env = GetContext()->GetPlatformEnvironment();
+        return env->GetDirectoryPath(DIRBASE::OPENRCT2, DIRID::SEQUENCE);
     }
 
     static std::string GetUserSequencesPath()
     {
-        auto env = OpenRCT2::GetContext()->GetPlatformEnvironment();
-        return env->GetDirectoryPath(OpenRCT2::DIRBASE::USER, OpenRCT2::DIRID::SEQUENCE);
+        auto env = GetContext()->GetPlatformEnvironment();
+        return env->GetDirectoryPath(DIRBASE::USER, DIRID::SEQUENCE);
     }
 
     static bool IsNameReserved(const std::string& name)
     {
         for (const auto& pseq : TitleSequenceManager::PredefinedSequences)
         {
-            if (String::IEquals(name, pseq.ConfigId))
+            if (String::iequals(name, pseq.ConfigId))
             {
                 return true;
             }
         }
         return false;
     }
-} // namespace TitleSequenceManager
 
-size_t TitleSequenceManagerGetCount()
-{
-    return TitleSequenceManager::GetCount();
-}
-
-const utf8* TitleSequenceManagerGetName(size_t index)
-{
-    auto item = TitleSequenceManager::GetItem(index);
-    if (item == nullptr)
+    const utf8* GetName(size_t index)
     {
-        return nullptr;
-    }
-    return item->Name.c_str();
-}
-
-const utf8* TitleSequenceManagerGetPath(size_t index)
-{
-    auto item = TitleSequenceManager::GetItem(index);
-    if (item == nullptr)
-    {
-        return nullptr;
-    }
-    return item->Path.c_str();
-}
-
-const utf8* TitleSequenceManagerGetConfigID(size_t index)
-{
-    auto item = TitleSequenceManager::GetItem(index);
-    if (item == nullptr)
-    {
-        return nullptr;
-    }
-    const auto& name = item->Name;
-    const auto filename = Path::GetFileName(item->Path);
-    for (const auto& pseq : TitleSequenceManager::PredefinedSequences)
-    {
-        if (String::IEquals(filename, pseq.Filename))
+        auto item = GetItem(index);
+        if (item == nullptr)
         {
-            return pseq.ConfigId;
+            return nullptr;
         }
+        return item->Name.c_str();
     }
-    return name.c_str();
-}
 
-size_t TitleSequenceManagerGetPredefinedIndex(size_t index)
-{
-    auto item = TitleSequenceManager::GetItem(index);
-    if (item == nullptr)
+    const utf8* GetPath(size_t index)
     {
-        return 0;
-    }
-    size_t predefinedIndex = item->PredefinedIndex;
-    return predefinedIndex;
-}
-
-size_t TitleSequenceManagerGetIndexForConfigID(const utf8* configId)
-{
-    size_t count = TitleSequenceManager::GetCount();
-    for (size_t i = 0; i < count; i++)
-    {
-        const utf8* cid = TitleSequenceManagerGetConfigID(i);
-        if (String::Equals(cid, configId))
+        auto item = GetItem(index);
+        if (item == nullptr)
         {
-            return i;
+            return nullptr;
         }
+        return item->Path.c_str();
     }
-    return SIZE_MAX;
-}
 
-size_t TitleSequenceManagerGetIndexForName(const utf8* name)
-{
-    size_t count = TitleSequenceManager::GetCount();
-    for (size_t i = 0; i < count; i++)
+    const utf8* GetConfigID(size_t index)
     {
-        const utf8* tn = TitleSequenceManagerGetName(i);
-        if (String::Equals(tn, name))
+        auto item = GetItem(index);
+        if (item == nullptr)
         {
-            return i;
+            return nullptr;
         }
+        const auto& name = item->Name;
+        const auto filename = Path::GetFileName(item->Path);
+        for (const auto& pseq : PredefinedSequences)
+        {
+            if (String::iequals(filename, pseq.Filename))
+            {
+                return pseq.ConfigId;
+            }
+        }
+        return name.c_str();
     }
-    return SIZE_MAX;
-}
 
-void TitleSequenceManagerScan()
-{
-    TitleSequenceManager::Scan();
-}
+    size_t GetPredefinedIndex(size_t index)
+    {
+        auto item = GetItem(index);
+        if (item == nullptr)
+        {
+            return 0;
+        }
+        size_t predefinedIndex = item->PredefinedIndex;
+        return predefinedIndex;
+    }
 
-void TitleSequenceManagerDelete(size_t i)
-{
-    TitleSequenceManager::DeleteItem(i);
-}
+    size_t GetIndexForConfigID(const utf8* configId)
+    {
+        size_t count = GetCount();
+        for (size_t i = 0; i < count; i++)
+        {
+            const utf8* cid = GetConfigID(i);
+            if (String::equals(cid, configId))
+            {
+                return i;
+            }
+        }
+        return SIZE_MAX;
+    }
 
-size_t TitleSequenceManagerRename(size_t i, const utf8* name)
-{
-    return TitleSequenceManager::RenameItem(i, name);
-}
-
-size_t TitleSequenceManagerDuplicate(size_t i, const utf8* name)
-{
-    return TitleSequenceManager::DuplicateItem(i, name);
-}
-
-size_t TitleSequenceManagerCreate(const utf8* name)
-{
-    return TitleSequenceManager::CreateItem(name);
-}
+    size_t GetIndexForName(const utf8* name)
+    {
+        size_t count = GetCount();
+        for (size_t i = 0; i < count; i++)
+        {
+            const utf8* tn = GetName(i);
+            if (String::equals(tn, name))
+            {
+                return i;
+            }
+        }
+        return SIZE_MAX;
+    }
+} // namespace OpenRCT2::TitleSequenceManager

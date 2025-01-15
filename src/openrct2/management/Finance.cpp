@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -13,13 +13,14 @@
 #include "../Game.h"
 #include "../GameState.h"
 #include "../OpenRCT2.h"
+#include "../core/EnumUtils.hpp"
 #include "../entity/Peep.h"
 #include "../entity/Staff.h"
 #include "../interface/Window.h"
-#include "../localisation/Date.h"
-#include "../localisation/Localisation.h"
+#include "../localisation/Localisation.Date.h"
 #include "../profiling/Profiling.h"
 #include "../ride/Ride.h"
+#include "../ride/RideManager.hpp"
 #include "../scenario/Scenario.h"
 #include "../util/Util.h"
 #include "../windows/Intent.h"
@@ -186,7 +187,7 @@ void FinancePayRideUpkeep()
 void FinanceResetHistory()
 {
     auto& gameState = GetGameState();
-    for (auto i = 0; i < kFinanceGraphSize; i++)
+    for (auto i = 0; i < kFinanceHistorySize; i++)
     {
         gameState.CashHistory[i] = kMoney64Undefined;
         gameState.WeeklyProfitHistory[i] = kMoney64Undefined;
@@ -325,7 +326,7 @@ void FinanceShiftExpenditureTable()
             std::cbegin(gameState.ExpenditureTable[kExpenditureTableMonthCount - 1]),
             std::cend(gameState.ExpenditureTable[kExpenditureTableMonthCount - 1]), money64{});
 
-        GetGameState().HistoricalProfit += sum;
+        gameState.HistoricalProfit += sum;
     }
 
     // Shift the table

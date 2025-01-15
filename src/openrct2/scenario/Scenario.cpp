@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -21,15 +21,17 @@
 #include "../audio/audio.h"
 #include "../config/Config.h"
 #include "../core/BitSet.hpp"
+#include "../core/EnumUtils.hpp"
 #include "../core/Guard.hpp"
 #include "../core/Path.hpp"
 #include "../core/Random.hpp"
+#include "../core/SawyerCoding.h"
+#include "../core/UnitConversion.h"
 #include "../entity/Duck.h"
 #include "../entity/Guest.h"
 #include "../entity/Staff.h"
 #include "../interface/Viewport.h"
-#include "../localisation/Date.h"
-#include "../localisation/Localisation.h"
+#include "../localisation/Localisation.Date.h"
 #include "../management/Award.h"
 #include "../management/Finance.h"
 #include "../management/Marketing.h"
@@ -38,16 +40,18 @@
 #include "../network/network.h"
 #include "../object/Object.h"
 #include "../object/ObjectEntryManager.h"
+#include "../object/ObjectLimits.h"
 #include "../object/ObjectList.h"
 #include "../object/ObjectManager.h"
+#include "../object/ScenarioTextObject.h"
 #include "../object/WaterEntry.h"
 #include "../platform/Platform.h"
 #include "../profiling/Profiling.h"
 #include "../rct1/RCT1.h"
 #include "../rct12/RCT12.h"
 #include "../ride/Ride.h"
+#include "../ride/RideManager.hpp"
 #include "../ride/Track.h"
-#include "../util/SawyerCoding.h"
 #include "../util/Util.h"
 #include "../windows/Intent.h"
 #include "../world/Climate.h"
@@ -55,8 +59,12 @@
 #include "../world/Map.h"
 #include "../world/Park.h"
 #include "../world/Scenery.h"
+#include "../world/tile_element/TileElement.h"
+#include "../world/tile_element/TrackElement.h"
 #include "ScenarioRepository.h"
 #include "ScenarioSources.h"
+
+#include <chrono>
 
 using namespace OpenRCT2;
 
@@ -70,8 +78,6 @@ bool gFirstTimeSaving = true;
 uint32_t gLastAutoSaveUpdate = 0;
 
 bool gAllowEarlyCompletionInNetworkPlay;
-
-std::string gScenarioFileName;
 
 static void ScenarioCheckObjective(GameState_t& gameState);
 
@@ -95,7 +101,10 @@ void ScenarioReset(GameState_t& gameState)
     gameState.ScenarioRand.seed(s);
 
     ResearchResetCurrentItem();
-    ScenerySetDefaultPlacementConfiguration();
+
+    auto intent = Intent(INTENT_ACTION_SET_DEFAULT_SCENERY_CONFIG);
+    ContextBroadcastIntent(&intent);
+
     News::InitQueue();
 
     gameState.Park.Rating = Park::CalculateParkRating();
@@ -104,26 +113,14 @@ void ScenarioReset(GameState_t& gameState)
     gameState.HistoricalProfit = gameState.InitialCash - gameState.BankLoan;
     gameState.Cash = gameState.InitialCash;
 
+    auto& objManager = GetContext()->GetObjectManager();
+    if (auto* object = objManager.GetLoadedObject(ObjectType::ScenarioText, 0); object != nullptr)
     {
-        utf8 normalisedName[64];
-        ScenarioSources::NormaliseName(normalisedName, sizeof(normalisedName), gameState.ScenarioName.c_str());
+        auto* textObject = reinterpret_cast<ScenarioTextObject*>(object);
 
-        StringId localisedStringIds[3];
-        if (LanguageGetLocalisedScenarioStrings(normalisedName, localisedStringIds))
-        {
-            if (localisedStringIds[0] != STR_NONE)
-            {
-                gameState.ScenarioName = LanguageGetString(localisedStringIds[0]);
-            }
-            if (localisedStringIds[1] != STR_NONE)
-            {
-                gameState.Park.Name = LanguageGetString(localisedStringIds[1]);
-            }
-            if (localisedStringIds[2] != STR_NONE)
-            {
-                gameState.ScenarioDetails = LanguageGetString(localisedStringIds[2]);
-            }
-        }
+        gameState.ScenarioName = textObject->GetScenarioName();
+        gameState.Park.Name = textObject->GetParkName();
+        gameState.ScenarioDetails = textObject->GetScenarioDetails();
     }
 
     // Set the last saved game path
@@ -152,7 +149,6 @@ void ScenarioReset(GameState_t& gameState)
     MapCountRemainingLandRights();
     Staff::ResetStats();
 
-    auto& objManager = GetContext()->GetObjectManager();
     gameState.LastEntranceStyle = objManager.GetLoadedObjectEntryIndex("rct2.station.plain");
     if (gameState.LastEntranceStyle == OBJECT_ENTRY_INDEX_NULL)
     {
@@ -203,10 +199,10 @@ void ScenarioSuccess(GameState_t& gameState)
     gameState.ScenarioCompletedCompanyValue = companyValue;
     PeepApplause();
 
-    if (ScenarioRepositoryTryRecordHighscore(gScenarioFileName.c_str(), companyValue, nullptr))
+    if (ScenarioRepositoryTryRecordHighscore(gameState.ScenarioFileName.c_str(), companyValue, nullptr))
     {
         // Allow name entry
-        GetGameState().Park.Flags |= PARK_FLAGS_SCENARIO_COMPLETE_NAME_INPUT;
+        gameState.Park.Flags |= PARK_FLAGS_SCENARIO_COMPLETE_NAME_INPUT;
         gameState.ScenarioCompanyValueRecord = companyValue;
     }
     ScenarioEnd();
@@ -218,7 +214,7 @@ void ScenarioSuccess(GameState_t& gameState)
  */
 void ScenarioSuccessSubmitName(GameState_t& gameState, const char* name)
 {
-    if (ScenarioRepositoryTryRecordHighscore(gScenarioFileName.c_str(), gameState.ScenarioCompanyValueRecord, name))
+    if (ScenarioRepositoryTryRecordHighscore(gameState.ScenarioFileName.c_str(), gameState.ScenarioCompanyValueRecord, name))
     {
         gameState.ScenarioCompletedBy = name;
     }
@@ -260,22 +256,24 @@ void ScenarioAutosaveCheck()
     uint32_t timeSinceSave = Platform::GetTicks() - gLastAutoSaveUpdate;
 
     bool shouldSave = false;
+    using namespace std::chrono_literals;
+
     switch (Config::Get().general.AutosaveFrequency)
     {
         case AUTOSAVE_EVERY_MINUTE:
-            shouldSave = timeSinceSave >= 1 * 60 * 1000;
+            shouldSave = timeSinceSave >= std::chrono::milliseconds(1min).count();
             break;
         case AUTOSAVE_EVERY_5MINUTES:
-            shouldSave = timeSinceSave >= 5 * 60 * 1000;
+            shouldSave = timeSinceSave >= std::chrono::milliseconds(5min).count();
             break;
         case AUTOSAVE_EVERY_15MINUTES:
-            shouldSave = timeSinceSave >= 15 * 60 * 1000;
+            shouldSave = timeSinceSave >= std::chrono::milliseconds(15min).count();
             break;
         case AUTOSAVE_EVERY_30MINUTES:
-            shouldSave = timeSinceSave >= 30 * 60 * 1000;
+            shouldSave = timeSinceSave >= std::chrono::milliseconds(30min).count();
             break;
         case AUTOSAVE_EVERY_HOUR:
-            shouldSave = timeSinceSave >= 60 * 60 * 1000;
+            shouldSave = timeSinceSave >= std::chrono::milliseconds(1h).count();
             break;
     }
 
@@ -598,7 +596,7 @@ ResultWithMessage ScenarioPrepareForSave(GameState_t& gameState)
     }
 
     if (gameState.ScenarioObjective.Type == OBJECTIVE_GUESTS_AND_RATING)
-        GetGameState().Park.Flags |= PARK_FLAGS_PARK_OPEN;
+        gameState.Park.Flags |= PARK_FLAGS_PARK_OPEN;
 
     ScenarioReset(gameState);
 
@@ -656,10 +654,11 @@ ObjectiveStatus Objective::CheckParkValueBy() const
 ObjectiveStatus Objective::Check10RollerCoasters() const
 {
     auto rcs = 0;
-    BitSet<MAX_RIDE_OBJECTS> type_already_counted;
+    BitSet<kMaxRideObjects> type_already_counted;
     for (const auto& ride : GetRideManager())
     {
-        if (ride.status == RideStatus::Open && ride.excitement >= RIDE_RATING(6, 00) && ride.subtype != OBJECT_ENTRY_INDEX_NULL)
+        if (ride.status == RideStatus::Open && ride.ratings.excitement >= RIDE_RATING(6, 00)
+            && ride.subtype != OBJECT_ENTRY_INDEX_NULL)
         {
             auto rideEntry = ride.GetRideEntry();
             if (rideEntry != nullptr)
@@ -756,18 +755,19 @@ ObjectiveStatus Objective::CheckMonthlyRideIncome() const
  */
 ObjectiveStatus Objective::Check10RollerCoastersLength() const
 {
-    BitSet<MAX_RIDE_OBJECTS> type_already_counted;
+    BitSet<kMaxRideObjects> type_already_counted;
     auto rcs = 0;
     for (const auto& ride : GetRideManager())
     {
-        if (ride.status == RideStatus::Open && ride.excitement >= RIDE_RATING(7, 00) && ride.subtype != OBJECT_ENTRY_INDEX_NULL)
+        if (ride.status == RideStatus::Open && ride.ratings.excitement >= RIDE_RATING(7, 00)
+            && ride.subtype != OBJECT_ENTRY_INDEX_NULL)
         {
             auto rideEntry = ride.GetRideEntry();
             if (rideEntry != nullptr)
             {
                 if (RideEntryHasCategory(*rideEntry, RIDE_CATEGORY_ROLLERCOASTER) && !type_already_counted[ride.subtype])
                 {
-                    if ((ride.GetTotalLength() >> 16) >= MinimumLength)
+                    if (ToHumanReadableRideLength(ride.GetTotalLength()) >= MinimumLength)
                     {
                         type_already_counted[ride.subtype] = true;
                         rcs++;
@@ -791,7 +791,7 @@ ObjectiveStatus Objective::CheckFinish5RollerCoasters() const
     auto rcs = 0;
     for (const auto& ride : GetRideManager())
     {
-        if (ride.status != RideStatus::Closed && ride.excitement >= MinimumExcitement)
+        if (ride.status != RideStatus::Closed && ride.ratings.excitement >= MinimumExcitement)
         {
             auto rideEntry = ride.GetRideEntry();
             if (rideEntry != nullptr)

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,11 +9,12 @@
 
 #include "Json.hpp"
 
+#include "../Diagnostic.h"
 #include "FileStream.h"
 #include "Memory.hpp"
 #include "String.hpp"
 
-namespace Json
+namespace OpenRCT2::Json
 {
     json_t ReadFromFile(u8string_view path, size_t maxSize)
     {
@@ -36,7 +37,7 @@ namespace Json
         }
         catch (const json_t::exception& e)
         {
-            throw JsonException(String::StdFormat(
+            throw JsonException(String::stdFormat(
                 "Unable to parse JSON file (%.*s)\n\t%s", static_cast<int>(path.length()), path.data(), e.what()));
         }
 
@@ -124,4 +125,4 @@ namespace Json
 
         return retVal;
     }
-} // namespace Json
+} // namespace OpenRCT2::Json

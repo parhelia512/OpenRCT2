@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -7,17 +7,17 @@
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
 
+#include <openrct2-ui/UiStringIds.h>
 #include <openrct2-ui/interface/Dropdown.h>
 #include <openrct2-ui/interface/Widget.h>
 #include <openrct2-ui/windows/Window.h>
 #include <openrct2/config/Config.h>
+#include <openrct2/core/EnumUtils.hpp>
 #include <openrct2/core/String.hpp>
 #include <openrct2/drawing/Text.h>
 #include <openrct2/interface/Colour.h>
 #include <openrct2/localisation/Currency.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
-#include <openrct2/util/Util.h>
 
 namespace OpenRCT2::Ui::Windows
 {
@@ -25,28 +25,28 @@ namespace OpenRCT2::Ui::Windows
     static constexpr int32_t WH = 100;
     static constexpr int32_t WW = 400;
 
+    enum WindowCustomCurrencyWidgetIdx
+    {
+        WIDX_BACKGROUND,
+        WIDX_TITLE,
+        WIDX_CLOSE,
+        WIDX_RATE,
+        WIDX_RATE_UP,
+        WIDX_RATE_DOWN,
+        WIDX_SYMBOL_TEXT,
+        WIDX_AFFIX_DROPDOWN,
+        WIDX_AFFIX_DROPDOWN_BUTTON,
+    };
+
     // clang-format off
-enum WindowCustomCurrencyWidgetIdx {
-    WIDX_BACKGROUND,
-    WIDX_TITLE,
-    WIDX_CLOSE,
-    WIDX_RATE,
-    WIDX_RATE_UP,
-    WIDX_RATE_DOWN,
-    WIDX_SYMBOL_TEXT,
-    WIDX_AFFIX_DROPDOWN,
-    WIDX_AFFIX_DROPDOWN_BUTTON,
-};
-
-static Widget window_custom_currency_widgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeSpinnerWidgets({100, 30}, {101, 11}, WindowWidgetType::Spinner,  WindowColour::Secondary, STR_CURRENCY_FORMAT), // NB: 3 widgets
-    MakeWidget        ({120, 50}, { 81, 11}, WindowWidgetType::Button,   WindowColour::Secondary, STR_EMPTY          ),
-    MakeWidget        ({220, 50}, {131, 11}, WindowWidgetType::DropdownMenu, WindowColour::Secondary                 ),
-    MakeWidget        ({339, 51}, { 11,  9}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH ),
-    kWidgetsEnd,
-};
-
+    static Widget window_custom_currency_widgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeSpinnerWidgets({100, 30}, {101, 11}, WindowWidgetType::Spinner,  WindowColour::Secondary, STR_CURRENCY_FORMAT), // NB: 3 widgets
+        MakeWidget        ({120, 50}, { 81, 11}, WindowWidgetType::Button,   WindowColour::Secondary, STR_EMPTY          ),
+        MakeWidget        ({220, 50}, {131, 11}, WindowWidgetType::DropdownMenu, WindowColour::Secondary                 ),
+        MakeWidget        ({339, 51}, { 11,  9}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH ),
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class CustomCurrencyWindow final : public Window
@@ -163,7 +163,7 @@ static Widget window_custom_currency_widgets[] = {
             switch (widgetIndex)
             {
                 case WIDX_SYMBOL_TEXT:
-                    SafeStrCpy(
+                    String::safeUtf8Copy(
                         CurrencyDescriptors[EnumValue(CurrencyType::Custom)].symbol_unicode, std::string(text).c_str(),
                         kCurrencySymbolMaxSize);
 

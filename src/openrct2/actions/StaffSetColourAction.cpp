@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,6 +10,7 @@
 #include "StaffSetColourAction.h"
 
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../core/MemoryStream.h"
 #include "../drawing/Drawing.h"
 #include "../entity/EntityList.h"
@@ -18,6 +19,8 @@
 #include "../ui/UiContext.h"
 #include "../ui/WindowManager.h"
 #include "../windows/Intent.h"
+
+using namespace OpenRCT2;
 
 StaffSetColourAction::StaffSetColourAction(StaffType staffType, uint8_t colour)
     : _staffType(static_cast<uint8_t>(staffType))

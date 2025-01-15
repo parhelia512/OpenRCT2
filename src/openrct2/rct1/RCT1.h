@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,13 +9,16 @@
 
 #pragma once
 
+#include "../Diagnostic.h"
 #include "../core/FixedPoint.hpp"
 #include "../rct12/RCT12.h"
 #include "../ride/RideRatings.h"
 #include "../world/Park.h"
 #include "Limits.h"
 
-namespace RCT1
+enum class VehicleColourSettings : uint8_t;
+
+namespace OpenRCT2::RCT1
 {
     constexpr uint8_t RCT1ResearchFlagsSeparator = 0xFF;
 
@@ -229,7 +232,7 @@ namespace RCT1
         uint16_t z;
         uint8_t direction;
     };
-    assert_struct_size(Entrance, 7);
+    static_assert(sizeof(Entrance) == 7);
 
     /**
      * RCT1 ride structure
@@ -237,11 +240,11 @@ namespace RCT1
      */
     struct Ride
     {
-        RideType Type;                 // 0x000
-        RCT1::VehicleType VehicleType; // 0x001
-        uint16_t LifecycleFlags;       // 0x002
-        uint8_t OperatingMode;         // 0x004
-        uint8_t ColourScheme;          // 0x005
+        RideType Type;                               // 0x000
+        RCT1::VehicleType VehicleType;               // 0x001
+        uint16_t LifecycleFlags;                     // 0x002
+        uint8_t OperatingMode;                       // 0x004
+        VehicleColourSettings vehicleColourSettings; // 0x005
         struct
         {
             colour_t Body;
@@ -322,31 +325,22 @@ namespace RCT1
         money16 Price;                                       // 0x0E8
         RCT12xy8 ChairliftBullwheelLocation[2];              // 0x0EA
         uint8_t ChairliftBullwheelZ[2];                      // 0x0EE
-        union
-        {
-            RatingTuple Ratings;
-            struct
-            {
-                ride_rating Excitement; // 0x0F0
-                ride_rating Intensity;  // 0x0F2
-                ride_rating Nausea;     // 0x0F4
-            };
-        };
-        money16 Value;                       // 0x0F6
-        uint16_t ChairliftBullwheelRotation; // 0x0F8
-        uint8_t Satisfaction;                // 0x0FA
-        uint8_t SatisfactionTimeOut;         // 0x0FB
-        uint8_t SatisfactionNext;            // 0x0FC
-        uint8_t WindowInvalidateFlags;       // 0x0FD
-        uint8_t UnkFE[2];                    // 0x0FE
-        uint32_t TotalCustomers;             // 0x100
-        money32 TotalProfit;                 // 0x104
-        uint8_t Popularity;                  // 0x108
-        uint8_t PopularityTimeOut;           // 0x109
-        uint8_t PopularityNext;              // 0x10A
-        uint8_t NumRiders;                   // 0x10B
-        uint8_t MusicTuneID;                 // 0x10C
-        uint8_t SlideInUse;                  // 0x10D
+        RatingTuple ratings;                                 // 0x0F0
+        money16 Value;                                       // 0x0F6
+        uint16_t ChairliftBullwheelRotation;                 // 0x0F8
+        uint8_t Satisfaction;                                // 0x0FA
+        uint8_t SatisfactionTimeOut;                         // 0x0FB
+        uint8_t SatisfactionNext;                            // 0x0FC
+        uint8_t WindowInvalidateFlags;                       // 0x0FD
+        uint8_t UnkFE[2];                                    // 0x0FE
+        uint32_t TotalCustomers;                             // 0x100
+        money32 TotalProfit;                                 // 0x104
+        uint8_t Popularity;                                  // 0x108
+        uint8_t PopularityTimeOut;                           // 0x109
+        uint8_t PopularityNext;                              // 0x10A
+        uint8_t NumRiders;                                   // 0x10B
+        uint8_t MusicTuneID;                                 // 0x10C
+        uint8_t SlideInUse;                                  // 0x10D
         union
         {
             uint16_t SlidePeep; // 0x10E
@@ -394,7 +388,7 @@ namespace RCT1
         uint8_t EntranceStyle;                          // 0x179
         uint8_t Unk17A[230];                            // 0x17A
     };
-    assert_struct_size(Ride, 0x260);
+    static_assert(sizeof(Ride) == 0x260);
 
     struct UnkEntity : RCT12EntityBase
     {
@@ -504,9 +498,9 @@ namespace RCT1
         uint8_t RideSubtype;     // 0xD6
         uint8_t ColoursExtended; // 0xD7
 
-        uint16_t GetTrackType() const
+        OpenRCT2::RCT12::TrackElemType GetTrackType() const
         {
-            return TrackTypeAndDirection >> 2;
+            return static_cast<OpenRCT2::RCT12::TrackElemType>(TrackTypeAndDirection >> 2);
         }
 
         uint8_t GetTrackDirection() const
@@ -515,7 +509,7 @@ namespace RCT1
         }
     };
 
-    enum class PeepSpriteType : uint8_t
+    enum class PeepAnimationGroup : uint8_t
     {
         Normal = 0,
         Handyman = 1,
@@ -529,12 +523,15 @@ namespace RCT1
         EntertainerSnowman = 9,
         EntertainerKnight = 10,
         EntertainerAstronaut = 11,
-
+        IceCream = 12,
+        Chips = 13,
+        Burger = 14,
+        Drink = 15,
         Balloon = 16,
         Candyfloss = 17,
         Umbrella = 18,
-        Pizza = 19,       // Unsure
-        SecurityAlt = 20, // Unknown
+        Pizza = 19,
+        SecurityAlt = 20,
         Popcorn = 21,
         ArmsCrossed = 22,
         HeadDown = 23,
@@ -542,24 +539,28 @@ namespace RCT1
         VeryNauseous = 25,
         RequireToilet = 26,
         Hat = 27,
-        Burger = 28,
+        HotDog = 28,
         Tentacle = 29,
-        ToffeeApple = 30
+        ToffeeApple = 30,
+        Doughnut = 31,
+        Coffee = 32,
+        Chicken = 33,
+        Lemonade = 34,
     };
 
     struct Peep : RCT12EntityBase
     {
         uint8_t Pad1F[3];
-        StringId NameStringID;     // 0x22
-        uint16_t NextX;            // 0x24
-        uint16_t NextY;            // 0x26
-        uint8_t NextZ;             // 0x28
-        uint8_t NextFlags;         // 0x29
-        uint8_t OutsideOfPark;     // 0x2A
-        uint8_t State;             // 0x2B
-        uint8_t SubState;          // 0x2C
-        PeepSpriteType SpriteType; // 0x2D
-        RCT12PeepType PeepType;    // 0x2E
+        StringId NameStringID;             // 0x22
+        uint16_t NextX;                    // 0x24
+        uint16_t NextY;                    // 0x26
+        uint8_t NextZ;                     // 0x28
+        uint8_t NextFlags;                 // 0x29
+        uint8_t OutsideOfPark;             // 0x2A
+        uint8_t State;                     // 0x2B
+        uint8_t SubState;                  // 0x2C
+        PeepAnimationGroup AnimationGroup; // 0x2D
+        RCT12PeepType PeepType;            // 0x2E
         union
         {
             uint8_t StaffType; // 0x2F
@@ -606,14 +607,14 @@ namespace RCT1
             };
         };
         // Normally 0, 1 for carrying sliding board on spiral slide ride, 2 for carrying lawn mower
-        uint8_t SpecialSprite;    // 0x6D
-        uint8_t ActionSpriteType; // 0x6E
-        // Seems to be used like a local variable, as it's always set before calling SwitchNextActionSpriteType, which reads
+        uint8_t SpecialSprite; // 0x6D
+        uint8_t AnimationType; // 0x6E
+        // Seems to be used like a local variable, as it's always set before calling SwitchNextAnimationType, which reads
         // this again
-        uint8_t NextActionSpriteType;    // 0x6F
-        uint8_t ActionSpriteImageOffset; // 0x70
-        uint8_t Action;                  // 0x71
-        uint8_t ActionFrame;             // 0x72
+        uint8_t NextAnimationType;      // 0x6F
+        uint8_t AnimationImageIdOffset; // 0x70
+        uint8_t Action;                 // 0x71
+        uint8_t AnimationFrameNum;      // 0x72
         uint8_t StepProgress;
         union
         {
@@ -632,14 +633,14 @@ namespace RCT1
         uint8_t RidesBeenOn[32]; // 0x7C
         // 255 bit bitmap of every ride the peep has been on see
         // WindowPeepRidesUpdate for how to use.
-        uint32_t ID;                                        // 0x9C
-        money32 CashInPocket;                               // 0xA0
-        money32 CashSpent;                                  // 0xA4
-        int32_t ParkEntryTime;                              // 0xA8
-        int8_t RejoinQueueTimeout;                          // 0xAC
-        RCT12RideId PreviousRide;                           // 0xAD
-        uint16_t PreviousRideTimeOut;                       // 0xAE
-        RCT12PeepThought Thoughts[Limits::MaxPeepThoughts]; // 0xB0
+        uint32_t ID;                                         // 0x9C
+        money32 CashInPocket;                                // 0xA0
+        money32 CashSpent;                                   // 0xA4
+        int32_t ParkEntryTime;                               // 0xA8
+        int8_t RejoinQueueTimeout;                           // 0xAC
+        RCT12RideId PreviousRide;                            // 0xAD
+        uint16_t PreviousRideTimeOut;                        // 0xAE
+        RCT12PeepThought Thoughts[Limits::kMaxPeepThoughts]; // 0xB0
         uint8_t PadC4;
         union
         {
@@ -691,7 +692,7 @@ namespace RCT1
             return ItemStandardFlags;
         }
     };
-    assert_struct_size(Peep, 0x100);
+    static_assert(sizeof(Peep) == 0x100);
 
     union Entity
     {
@@ -708,7 +709,7 @@ namespace RCT1
         RCT12EntityCrashSplash CrashSplash;
         RCT12EntitySteamParticle SteamParticle;
     };
-    assert_struct_size(Entity, 0x100);
+    static_assert(sizeof(Entity) == 0x100);
 
     struct ResearchItem
     {
@@ -718,7 +719,7 @@ namespace RCT1
         uint8_t Flags;
         uint8_t Category;
     };
-    assert_struct_size(ResearchItem, 5);
+    static_assert(sizeof(ResearchItem) == 5);
 
     /**
      * RCT1,AA,LL scenario / saved game structure.
@@ -764,7 +765,7 @@ namespace RCT1
         uint32_t RideFeature2[128];
         uint16_t GuestsInPark;
         uint16_t Unk198C9E;
-        money32 Expenditure[Limits::ExpenditureTableMonthCount][Limits::ExpenditureTypeCount];
+        money32 Expenditure[Limits::kExpenditureTableMonthCount][Limits::kExpenditureTypeCount];
         uint32_t GuestsInPark2;
         uint8_t Unk199024;
         colour_t HandymanColour;
@@ -775,7 +776,7 @@ namespace RCT1
         uint8_t Unk1990AA[94];
         uint16_t ParkRating;
         uint8_t ParkRatingHistory[kParkRatingHistorySize];
-        uint8_t GuestsInParkHistory[32];
+        uint8_t GuestsInParkHistory[kGuestsInParkHistorySize];
         uint8_t ResearchPriority;
         uint8_t ResearchProgressStage;
         uint8_t LastResearchItem;
@@ -807,13 +808,13 @@ namespace RCT1
         uint8_t MarketingStatus[20];
         uint8_t MarketingAssoc[20];
         uint8_t Unk199582[2];
-        money32 CashHistory[Limits::FinanceGraphSize];
+        money32 CashHistory[Limits::kFinanceGraphSize];
         money32 TotalExpenditure;
         money32 Profit;
         uint8_t Unk199788[8];
-        money32 WeeklyProfitHistory[Limits::FinanceGraphSize];
+        money32 WeeklyProfitHistory[Limits::kFinanceGraphSize];
         money32 ParkValue;
-        money32 ParkValueHistory[Limits::FinanceGraphSize];
+        money32 ParkValueHistory[Limits::kFinanceGraphSize];
         money32 CompletedCompanyValue;
         uint32_t NumAdmissions;
         money32 AdmissionTotalIncome;
@@ -853,7 +854,7 @@ namespace RCT1
         ResearchItem ResearchItemsLL[250];
         uint8_t Unk19A0D9[5118];
         RCT12Banner Banners[Limits::kMaxBanners];
-        char StringTable[Limits::MaxUserStrings][Limits::MaxUserStringLength];
+        char StringTable[Limits::kMaxUserStrings][Limits::kMaxUserStringLength];
         uint32_t GameTimeCounter;
         Ride Rides[Limits::kMaxRidesInPark];
         uint16_t UnkGameTimeCounter;
@@ -871,7 +872,7 @@ namespace RCT1
         RCT12RideMeasurement RideMeasurements[8];
         uint32_t NextGuestIndex;
         uint16_t GameCounter5;
-        uint8_t PatrolAreas[(Limits::kMaxStaff + Limits::StaffTypeCount) * Limits::PatrolAreaSize];
+        uint8_t PatrolAreas[(Limits::kMaxStaff + Limits::kStaffTypeCount) * Limits::kPatrolAreaSize];
         uint8_t StaffModes[Limits::kMaxStaff];
         uint8_t Unk1F431E[4];
         uint8_t Unk1F4322[8];
@@ -895,7 +896,7 @@ namespace RCT1
         uint8_t Unk1F8358[432];
         uint32_t ExpansionPackChecksum;
     };
-    assert_struct_size(S4, 0x1F850C);
+    static_assert(sizeof(S4) == 0x1F850C);
 
     /**
      * Track design structure. Only for base RCT1
@@ -943,7 +944,7 @@ namespace RCT1
         money16 UpkeepCost;        // 0x36
     };
 
-    assert_struct_size(TD4, 0x38);
+    static_assert(sizeof(TD4) == 0x38);
 
     /**
      * Track design structure for Added Attractions / Loopy Landscapes
@@ -959,7 +960,7 @@ namespace RCT1
         uint8_t Pad45[0x7F]; // 0x45
     };
 
-    assert_struct_size(TD4AA, 0xC4);
+    static_assert(sizeof(TD4AA) == 0xC4);
 #pragma pack(pop)
 
     enum
@@ -1298,5 +1299,5 @@ namespace RCT1
         RCT1_PATH_SUPPORT_TYPE_BAMBOO,
     };
 
-    track_type_t RCT1TrackTypeToOpenRCT2(RCT12TrackType origTrackType, ride_type_t rideType);
-} // namespace RCT1
+    OpenRCT2::TrackElemType RCT1TrackTypeToOpenRCT2(OpenRCT2::RCT12::TrackElemType origTrackType, ride_type_t rideType);
+} // namespace OpenRCT2::RCT1

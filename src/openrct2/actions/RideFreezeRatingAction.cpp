@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -8,6 +8,11 @@
  *****************************************************************************/
 
 #include "RideFreezeRatingAction.h"
+
+#include "../Diagnostic.h"
+#include "../interface/Window.h"
+
+using namespace OpenRCT2;
 
 RideFreezeRatingAction::RideFreezeRatingAction(RideId rideIndex, RideRatingType type, ride_rating value)
     : _rideIndex(rideIndex)
@@ -55,13 +60,13 @@ GameActions::Result RideFreezeRatingAction::Execute() const
     switch (_type)
     {
         case RideRatingType::Excitement:
-            ride->excitement = _value;
+            ride->ratings.excitement = _value;
             break;
         case RideRatingType::Intensity:
-            ride->intensity = _value;
+            ride->ratings.intensity = _value;
             break;
         case RideRatingType::Nausea:
-            ride->nausea = _value;
+            ride->ratings.nausea = _value;
             break;
     }
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,20 +11,22 @@
 
 #include "../../Game.h"
 #include "../../GameState.h"
+#include "../../core/EnumUtils.hpp"
 #include "../../interface/Viewport.h"
-#include "../../localisation/Date.h"
+#include "../../localisation/Localisation.Date.h"
 #include "../../object/SmallSceneryEntry.h"
 #include "../../profiling/Profiling.h"
 #include "../../ride/TrackDesign.h"
-#include "../../util/Util.h"
 #include "../../world/Map.h"
 #include "../../world/Scenery.h"
 #include "../../world/TileInspector.h"
+#include "../../world/tile_element/SmallSceneryElement.h"
 #include "../support/WoodenSupports.h"
 #include "Paint.TileElement.h"
 #include "Segment.h"
 
 using namespace OpenRCT2;
+using namespace OpenRCT2::Numerics;
 
 static constexpr CoordsXY lengths[] = {
     { 12, 26 },
@@ -73,7 +75,7 @@ static void SetSupportHeights(
 {
     height += sceneryEntry.height;
 
-    PaintUtilSetGeneralSupportHeight(session, Ceil2(height, 8));
+    PaintUtilSetGeneralSupportHeight(session, ceil2(height, 8));
     if (sceneryEntry.HasFlag(SMALL_SCENERY_FLAG_BUILD_DIRECTLY_ONTOP))
     {
         if (sceneryEntry.HasFlag(SMALL_SCENERY_FLAG_FULL_TILE))

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,28 +11,29 @@
 #include <openrct2-ui/windows/Window.h>
 #include <openrct2/Context.h>
 #include <openrct2/drawing/Text.h>
-#include <openrct2/localisation/Localisation.h>
 #include <openrct2/network/network.h>
-#include <openrct2/util/Util.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 
 namespace OpenRCT2::Ui::Windows
 {
+    enum WindowNetworkStatusWidgetIdx
+    {
+        WIDX_BACKGROUND,
+        WIDX_TITLE,
+        WIDX_CLOSE,
+        WIDX_PASSWORD
+    };
+
     // clang-format off
-enum WindowNetworkStatusWidgetIdx {
-    WIDX_BACKGROUND,
-    WIDX_TITLE,
-    WIDX_CLOSE,
-    WIDX_PASSWORD
-};
-
-static Widget window_network_status_widgets[] = {
-    MakeWidget({  0, 0}, {400, 91}, WindowWidgetType::Frame,    WindowColour::Primary                                   ), // panel / background
-    MakeWidget({  1, 1}, {397, 14}, WindowWidgetType::Caption,  WindowColour::Primary, STR_NONE,    STR_WINDOW_TITLE_TIP), // title bar
-    MakeWidget({388, 2}, { 11, 12}, WindowWidgetType::CloseBox, WindowColour::Primary, STR_CLOSE_X, STR_CLOSE_WINDOW_TIP), // close x button
-    kWidgetsEnd,
-};
-
+    static Widget window_network_status_widgets[] = {
+        MakeWidget({  0, 0}, {400, 91}, WindowWidgetType::Frame,    WindowColour::Primary                                   ), // panel / background
+        MakeWidget({  1, 1}, {397, 14}, WindowWidgetType::Caption,  WindowColour::Primary, STR_NONE,    STR_WINDOW_TITLE_TIP), // title bar
+        MakeWidget({388, 2}, { 11, 12}, WindowWidgetType::CloseBox, WindowColour::Primary, STR_CLOSE_X, STR_CLOSE_WINDOW_TIP), // close x button
+        kWidgetsEnd,
+    };
     // clang-format on
+
     class NetworkStatusWindow final : public Window
     {
     public:
@@ -110,7 +111,7 @@ static Widget window_network_status_widgets[] = {
             DrawText(dpi, screenCoords, { COLOUR_BLACK }, _buffer.c_str());
         }
 
-        void SetCloseCallBack(close_callback onClose)
+        void SetCloseCallBack(CloseCallback onClose)
         {
             _onClose = onClose;
         }
@@ -127,17 +128,19 @@ static Widget window_network_status_widgets[] = {
         }
 
     private:
-        close_callback _onClose = nullptr;
+        CloseCallback _onClose = nullptr;
         std::string _windowNetworkStatusText;
         std::string _password;
     };
 
-    WindowBase* NetworkStatusOpen(const std::string& text, close_callback onClose)
+    WindowBase* NetworkStatusOpen(const std::string& text, CloseCallback onClose)
     {
         ContextForceCloseWindowByClass(WindowClass::ProgressWindow);
 
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+
         NetworkStatusWindow* window;
-        if ((window = static_cast<NetworkStatusWindow*>(WindowFindByClass(WindowClass::NetworkStatus))) != nullptr)
+        if ((window = static_cast<NetworkStatusWindow*>(windowMgr->FindByClass(WindowClass::NetworkStatus))) != nullptr)
         {
             WindowBringToFront(*window);
         }
@@ -155,7 +158,8 @@ static Widget window_network_status_widgets[] = {
     // force close
     void WindowNetworkStatusClose()
     {
-        auto window = WindowFindByClass(WindowClass::NetworkStatus);
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto window = windowMgr->FindByClass(WindowClass::NetworkStatus);
         if (window == nullptr)
         {
             return;

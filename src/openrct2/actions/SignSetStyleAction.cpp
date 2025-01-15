@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,6 +10,7 @@
 #include "SignSetStyleAction.h"
 
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../core/MemoryStream.h"
 #include "../drawing/Drawing.h"
 #include "../localisation/StringIds.h"
@@ -17,6 +18,10 @@
 #include "../windows/Intent.h"
 #include "../world/Banner.h"
 #include "../world/Scenery.h"
+#include "../world/tile_element/LargeSceneryElement.h"
+#include "../world/tile_element/WallElement.h"
+
+using namespace OpenRCT2;
 
 SignSetStyleAction::SignSetStyleAction(BannerIndex bannerIndex, uint8_t mainColour, uint8_t textColour, bool isLarge)
     : _bannerIndex(bannerIndex)

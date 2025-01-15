@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -13,9 +13,11 @@
 #include <openrct2/Context.h>
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/drawing/Text.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/localisation/Formatting.h>
 #include <openrct2/localisation/StringIds.h>
 #include <openrct2/sprites.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <random>
 #include <sstream>
 
@@ -70,7 +72,7 @@ namespace OpenRCT2::Ui::Windows
     class ProgressWindow final : public Window
     {
     private:
-        close_callback _onClose = nullptr;
+        CloseCallback _onClose = nullptr;
 
         StringId _progressFormat;
         std::string _progressTitle;
@@ -194,11 +196,12 @@ namespace OpenRCT2::Ui::Windows
 
             // Figure out where to position the vehicle to indicate progress
             auto* vehicle = GfxGetG1Element(variant.vehicle);
+            int16_t vehicleWidth = (vehicle != nullptr) ? vehicle->width : 0;
             int32_t position;
             if (_totalCount > 0)
-                position = (-vehicle->width + 2) + width * _currentProgress / _totalCount;
+                position = (-vehicleWidth + 2) + width * _currentProgress / _totalCount;
             else
-                position = (vehicle->width + width) / 2;
+                position = (vehicleWidth + width) / 2;
 
             GfxDrawSprite(clipDPI, variant.vehicle, ScreenCoordsXY(position, widget.bottom + 1));
         }
@@ -212,7 +215,7 @@ namespace OpenRCT2::Ui::Windows
             Invalidate();
         }
 
-        void SetCloseCallback(close_callback onClose)
+        void SetCloseCallback(CloseCallback onClose)
         {
             _onClose = onClose;
         }
@@ -230,12 +233,14 @@ namespace OpenRCT2::Ui::Windows
         }
     };
 
-    WindowBase* ProgressWindowOpen(const std::string& text, close_callback onClose)
+    WindowBase* ProgressWindowOpen(const std::string& text, CloseCallback onClose)
     {
         ContextForceCloseWindowByClass(WindowClass::NetworkStatus);
 
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+
         ProgressWindow* window;
-        if ((window = static_cast<ProgressWindow*>(WindowFindByClass(WindowClass::ProgressWindow))) != nullptr)
+        if ((window = static_cast<ProgressWindow*>(windowMgr->FindByClass(WindowClass::ProgressWindow))) != nullptr)
         {
             WindowBringToFront(*window);
         }
@@ -253,7 +258,8 @@ namespace OpenRCT2::Ui::Windows
 
     void ProgressWindowSet(uint32_t currentProgress, uint32_t totalCount, StringId format)
     {
-        auto window = WindowFindByClass(WindowClass::ProgressWindow);
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto window = windowMgr->FindByClass(WindowClass::ProgressWindow);
         if (window == nullptr)
         {
             return;
@@ -265,7 +271,8 @@ namespace OpenRCT2::Ui::Windows
     // Closes the window, deliberately *without* executing the callback.
     void ProgressWindowClose()
     {
-        auto window = WindowFindByClass(WindowClass::ProgressWindow);
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto window = windowMgr->FindByClass(WindowClass::ProgressWindow);
         if (window == nullptr)
         {
             return;

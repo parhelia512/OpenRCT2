@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,11 +9,13 @@
 
 #include "PeepPickupAction.h"
 
+#include "../Diagnostic.h"
 #include "../Input.h"
 #include "../entity/EntityRegistry.h"
 #include "../entity/Peep.h"
 #include "../network/network.h"
-#include "../util/Util.h"
+
+using namespace OpenRCT2;
 
 PeepPickupAction::PeepPickupAction(PeepPickupType type, EntityId entityId, const CoordsXYZ& loc, NetworkPlayerId_t owner)
     : _type(type)

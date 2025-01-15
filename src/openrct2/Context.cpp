@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -8,7 +8,8 @@
  *****************************************************************************/
 
 #ifdef __EMSCRIPTEN__
-#    include <emscripten.h>
+    #include <cassert>
+    #include <emscripten.h>
 #endif // __EMSCRIPTEN__
 
 #include "AssetPackManager.h"
@@ -18,7 +19,6 @@
 #include "Game.h"
 #include "GameState.h"
 #include "GameStateSnapshots.h"
-#include "Input.h"
 #include "OpenRCT2.h"
 #include "ParkImporter.h"
 #include "PlatformEnvironment.h"
@@ -44,12 +44,10 @@
 #include "entity/EntityRegistry.h"
 #include "entity/EntityTweener.h"
 #include "interface/Chat.h"
-#include "interface/InteractiveConsole.h"
 #include "interface/StdInOutConsole.h"
 #include "interface/Viewport.h"
-#include "localisation/Date.h"
 #include "localisation/Formatter.h"
-#include "localisation/Localisation.h"
+#include "localisation/Localisation.Date.h"
 #include "localisation/LocalisationService.h"
 #include "network/DiscordService.h"
 #include "network/NetworkBase.h"
@@ -75,9 +73,9 @@
 #include "scripting/ScriptEngine.h"
 #include "ui/UiContext.h"
 #include "ui/WindowManager.h"
-#include "util/Util.h"
 #include "world/Park.h"
 
+#include <chrono>
 #include <cmath>
 #include <exception>
 #include <future>
@@ -96,6 +94,13 @@ using OpenRCT2::Audio::IAudioContext;
 
 namespace OpenRCT2
 {
+    namespace
+    {
+        using namespace std::chrono_literals;
+
+        static constexpr auto kForcedUpdateInterval = 25ms;
+    } // namespace
+
     class Context final : public IContext
     {
     private:
@@ -151,6 +156,10 @@ namespace OpenRCT2
         NewVersionInfo _newVersionInfo;
         bool _hasNewVersionInfo = false;
 
+        // We keep track of this to perform certain operations differently.
+        std::thread::id _mainThreadId{};
+        Timer _forcedUpdateTimer;
+
     public:
         // Singleton of Context.
         // Remove this when GetContext() is no longer called so that
@@ -183,6 +192,7 @@ namespace OpenRCT2
             Guard::Assert(Instance == nullptr);
 
             Instance = this;
+            _mainThreadId = std::this_thread::get_id();
         }
 
         ~Context() override
@@ -195,6 +205,7 @@ namespace OpenRCT2
 #endif
 
             GameActions::ClearQueue();
+            _replayManager->StopRecording(true);
 #ifndef DISABLE_NETWORK
             _network.Close();
 #endif
@@ -400,7 +411,7 @@ namespace OpenRCT2
 
             CrashInit();
 
-            if (String::Equals(Config::Get().general.LastRunVersion, OPENRCT2_VERSION))
+            if (String::equals(Config::Get().general.LastRunVersion, OPENRCT2_VERSION))
             {
                 gOpenRCT2ShowChangelog = false;
             }
@@ -508,10 +519,9 @@ namespace OpenRCT2
                 {
                     return false;
                 }
-                LightFXInit();
+                Drawing::LightFx::Init();
             }
 
-            InputResetPlaceObjModifier();
             ViewportInitAll();
 
             ContextInit();
@@ -523,17 +533,13 @@ namespace OpenRCT2
 
                 // TODO: preload the title scene in another (parallel) job.
                 preloaderScene->AddJob([this]() { InitialiseRepositories(); });
+                preloaderScene->AddJob([this]() { InitialiseScriptEngine(); });
             }
             else
             {
                 InitialiseRepositories();
+                InitialiseScriptEngine();
             }
-
-#ifdef ENABLE_SCRIPTING
-            _scriptEngine.Initialise();
-#endif
-
-            _uiContext->Initialise();
 
             return true;
         }
@@ -572,6 +578,17 @@ namespace OpenRCT2
             TitleSequenceManager::Scan();
 
             OpenProgress(STR_LOADING_GENERIC);
+        }
+
+        void InitialiseScriptEngine()
+        {
+#ifdef ENABLE_SCRIPTING
+            OpenProgress(STR_LOADING_PLUGIN_ENGINE);
+            _scriptEngine.Initialise();
+            _uiContext->InitialiseScriptExtensions();
+
+            OpenProgress(STR_LOADING_GENERIC);
+#endif
         }
 
     public:
@@ -650,11 +667,26 @@ namespace OpenRCT2
 
         void SetProgress(uint32_t currentProgress, uint32_t totalCount, StringId format = STR_NONE) override
         {
+            if (_forcedUpdateTimer.GetElapsedTime() < kForcedUpdateInterval)
+                return;
+
+            _forcedUpdateTimer.Restart();
+
             auto intent = Intent(INTENT_ACTION_PROGRESS_SET);
             intent.PutExtra(INTENT_EXTRA_PROGRESS_OFFSET, currentProgress);
             intent.PutExtra(INTENT_EXTRA_PROGRESS_TOTAL, totalCount);
             intent.PutExtra(INTENT_EXTRA_STRING_ID, format);
             ContextOpenIntent(&intent);
+
+            // When we call this from the main thread we can pump messages and redraw.
+            const auto isMainThread = _mainThreadId == std::this_thread::get_id();
+
+            if (!gOpenRCT2Headless && isMainThread)
+            {
+                _uiContext->ProcessMessages();
+                WindowInvalidateByClass(WindowClass::ProgressWindow);
+                Draw();
+            }
         }
 
         void CloseProgress() override
@@ -683,7 +715,7 @@ namespace OpenRCT2
 
             try
             {
-                if (String::IEquals(Path::GetExtension(path), ".sea"))
+                if (String::iequals(Path::GetExtension(path), ".sea"))
                 {
                     auto data = DecryptSea(fs::u8path(path));
                     auto ms = MemoryStream(data.data(), data.size(), MEMORY_ACCESS::READ);
@@ -747,18 +779,30 @@ namespace OpenRCT2
                     parkImporter = ParkImporter::CreateS6(*_objectRepository);
                 }
 
+                // Inhibit viewport rendering while we're loading
+                WindowSetFlagForAllViewports(VIEWPORT_FLAG_RENDERING_INHIBITED, true);
+
+                OpenProgress(asScenario ? STR_LOADING_SCENARIO : STR_LOADING_SAVED_GAME);
+                SetProgress(0, 100, STR_STRING_M_PERCENT);
+
                 auto result = parkImporter->LoadFromStream(stream, info.Type == FILE_TYPE::SCENARIO, false, path.c_str());
+                SetProgress(10, 100, STR_STRING_M_PERCENT);
 
                 // From this point onwards the currently loaded park will be corrupted if loading fails
                 // so reload the title screen if that happens.
                 loadTitleScreenFirstOnFail = true;
 
                 GameUnloadScripts();
-                _objectManager->LoadObjects(result.RequiredObjects);
+                _objectManager->LoadObjects(result.RequiredObjects, true);
+                SetProgress(90, 100, STR_STRING_M_PERCENT);
 
                 // TODO: Have a separate GameState and exchange once loaded.
                 auto& gameState = ::GetGameState();
                 parkImporter->Import(gameState);
+                SetProgress(100, 100, STR_STRING_M_PERCENT);
+
+                // Reset viewport rendering inhibition
+                WindowSetFlagForAllViewports(VIEWPORT_FLAG_RENDERING_INHIBITED, false);
 
                 gScenarioSavePath = path;
                 gCurrentLoadedPath = path;
@@ -804,7 +848,7 @@ namespace OpenRCT2
                 }
                 // This ensures that the newly loaded save reflects the user's
                 // 'show real names of guests' option, now that it's a global setting
-                PeepUpdateNames(Config::Get().general.ShowRealNamesOfGuests);
+                PeepUpdateNames();
 #ifndef DISABLE_NETWORK
                 if (sendMap)
                 {
@@ -833,6 +877,7 @@ namespace OpenRCT2
                     windowManager->ShowError(STR_PARK_USES_FALLBACK_IMAGES_WARNING, STR_EMPTY, Formatter());
                 }
 
+                CloseProgress();
                 return true;
             }
             catch (const ObjectLoadException& e)
@@ -908,6 +953,8 @@ namespace OpenRCT2
                 Console::Error::WriteLine(e.what());
             }
 
+            CloseProgress();
+            WindowSetFlagForAllViewports(VIEWPORT_FLAG_RENDERING_INHIBITED, false);
             return false;
         }
 
@@ -958,6 +1005,7 @@ namespace OpenRCT2
             return result;
         }
 
+        // TODO: move function elsewhere?
         bool LoadBaseGraphics()
         {
             if (!GfxLoadG1(*_env))
@@ -1053,7 +1101,7 @@ namespace OpenRCT2
 
                 case StartupAction::Edit:
                 {
-                    if (String::SizeOf(gOpenRCT2StartupActionPath) == 0)
+                    if (String::sizeOf(gOpenRCT2StartupActionPath) == 0)
                     {
                         Editor::Load();
                         nextScene = GetGameScene();
@@ -1135,7 +1183,7 @@ namespace OpenRCT2
             {
                 _versionCheckFuture = std::async(std::launch::async, [this] {
                     _newVersionInfo = GetLatestVersion();
-                    if (!String::StartsWith(gVersionInfoTag, _newVersionInfo.tag))
+                    if (!String::startsWith(gVersionInfoTag, _newVersionInfo.tag))
                     {
                         _hasNewVersionInfo = true;
                     }
@@ -1349,7 +1397,10 @@ namespace OpenRCT2
 
             ChatUpdate();
 #ifdef ENABLE_SCRIPTING
-            _scriptEngine.Tick();
+            if (GetActiveScene() != GetPreloaderScene())
+            {
+                _scriptEngine.Tick();
+            }
 #endif
             _stdInOutConsole.ProcessEvalQueue();
             _uiContext->Tick();
@@ -1513,11 +1564,6 @@ void ContextInit()
 bool ContextLoadParkFromStream(void* stream)
 {
     return GetContext()->LoadParkFromStream(static_cast<IStream*>(stream), "");
-}
-
-void OpenRCT2WriteFullVersionInfo(utf8* buffer, size_t bufferSize)
-{
-    String::Set(buffer, bufferSize, gVersionInfoFull);
 }
 
 void OpenRCT2Finish()
@@ -1685,22 +1731,6 @@ void ContextInputHandleKeyboard(bool isTitle)
 void ContextQuit()
 {
     GetContext()->Quit();
-}
-
-bool ContextOpenCommonFileDialog(utf8* outFilename, OpenRCT2::Ui::FileDialogDesc& desc, size_t outSize)
-{
-    try
-    {
-        std::string result = GetContext()->GetUiContext()->ShowFileDialog(desc);
-        String::Set(outFilename, outSize, result.c_str());
-        return !result.empty();
-    }
-    catch (const std::exception& ex)
-    {
-        LOG_ERROR(ex.what());
-        outFilename[0] = '\0';
-        return false;
-    }
 }
 
 u8string ContextOpenCommonFileDialog(OpenRCT2::Ui::FileDialogDesc& desc)

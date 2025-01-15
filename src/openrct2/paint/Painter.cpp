@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,24 +9,19 @@
 
 #include "Painter.h"
 
-#include "../Game.h"
 #include "../GameState.h"
 #include "../OpenRCT2.h"
 #include "../ReplayManager.h"
 #include "../config/Config.h"
 #include "../drawing/IDrawingEngine.h"
 #include "../drawing/Text.h"
-#include "../interface/Chat.h"
-#include "../interface/InteractiveConsole.h"
-#include "../interface/Widget.h"
-#include "../localisation/FormatCodes.h"
 #include "../localisation/Formatting.h"
 #include "../localisation/Language.h"
 #include "../paint/Paint.h"
 #include "../profiling/Profiling.h"
 #include "../scenes/intro/IntroScene.h"
-#include "../scenes/title/TitleScene.h"
 #include "../ui/UiContext.h"
+#include "../ui/WindowManager.h"
 #include "../world/TileInspector.h"
 
 using namespace OpenRCT2;
@@ -56,11 +51,6 @@ void Painter::Paint(IDrawingEngine& de)
         UpdatePaletteEffects();
         _uiContext->Draw(*dpi);
 
-        if ((gScreenFlags & SCREEN_FLAGS_TITLE_DEMO) && !TitleShouldHideVersionInfo())
-        {
-            DrawOpenRCT2(*dpi, { 0, _uiContext->GetHeight() - 20 });
-        }
-
         GfxDrawPickedUpPeep(*dpi);
         GfxInvalidatePickedUpPeep();
 
@@ -70,7 +60,7 @@ void Painter::Paint(IDrawingEngine& de)
     auto* replayManager = GetContext()->GetReplayManager();
     const char* text = nullptr;
 
-    if (replayManager->IsReplaying())
+    if (replayManager->IsReplaying() && !gSilentReplays)
         text = "Replaying...";
     else if (replayManager->ShouldDisplayNotice())
         text = "Recording...";
@@ -106,13 +96,11 @@ void Painter::PaintReplayNotice(DrawPixelInfo& dpi, const char* text)
 
 static bool ShouldShowFPS()
 {
-    if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO && !TitleShouldHideVersionInfo())
+    if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
         return true;
 
-    if (!WindowFindByClass(WindowClass::TopToolbar))
-        return false;
-
-    return true;
+    auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+    return windowMgr->FindByClass(WindowClass::TopToolbar);
 }
 
 void Painter::PaintFPS(DrawPixelInfo& dpi)
@@ -173,15 +161,13 @@ PaintSession* Painter::CreateSession(DrawPixelInfo& dpi, uint32_t viewFlags, uin
     else
     {
         // Create new one in pool.
-        _paintSessionPool.emplace_back(std::make_unique<PaintSession>());
-        session = _paintSessionPool.back().get();
+        session = &_paintSessionPool.emplace_back();
     }
 
     session->DPI = dpi;
     session->ViewFlags = viewFlags;
     session->QuadrantBackIndex = std::numeric_limits<uint32_t>::max();
     session->QuadrantFrontIndex = 0;
-    session->PaintEntryChain = _paintStructPool.Create();
     session->Flags = 0;
     session->CurrentRotation = rotation;
 
@@ -204,15 +190,12 @@ void Painter::ReleaseSession(PaintSession* session)
 {
     PROFILED_FUNCTION();
 
-    session->PaintEntryChain.Clear();
+    session->paintEntries.clear();
+
     _freePaintSessions.push_back(session);
 }
 
 Painter::~Painter()
 {
-    for (auto&& session : _paintSessionPool)
-    {
-        ReleaseSession(session.get());
-    }
     _paintSessionPool.clear();
 }

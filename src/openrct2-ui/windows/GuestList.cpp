@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -14,20 +14,24 @@
 #include <openrct2/Context.h>
 #include <openrct2/Game.h>
 #include <openrct2/GameState.h>
+#include <openrct2/core/Numerics.hpp>
+#include <openrct2/core/String.hpp>
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/entity/EntityRegistry.h>
 #include <openrct2/entity/Guest.h>
 #include <openrct2/localisation/Formatter.h>
 #include <openrct2/localisation/Formatting.h>
-#include <openrct2/localisation/Localisation.h>
-#include <openrct2/peep/PeepAnimationData.h>
+#include <openrct2/object/PeepAnimationsObject.h>
+#include <openrct2/peep/PeepThoughts.h>
 #include <openrct2/ride/RideData.h>
 #include <openrct2/scenario/Scenario.h>
 #include <openrct2/sprites.h>
-#include <openrct2/util/Math.hpp>
-#include <openrct2/util/Util.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <openrct2/world/Park.h>
 #include <vector>
+
+using namespace OpenRCT2::Numerics;
 
 namespace OpenRCT2::Ui::Windows
 {
@@ -54,21 +58,21 @@ namespace OpenRCT2::Ui::Windows
     };
 
     // clang-format off
-static Widget window_guest_list_widgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget({  0, 43}, {350, 287}, WindowWidgetType::Resize,   WindowColour::Secondary                                                   ), // tab content panel
-    MakeWidget({  5, 59}, { 80,  12}, WindowWidgetType::DropdownMenu, WindowColour::Secondary, STR_ARG_4_PAGE_X                                 ), // page dropdown
-    MakeWidget({ 73, 60}, { 11,  10}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH                               ), // page dropdown button
-    MakeWidget({120, 59}, {142,  12}, WindowWidgetType::DropdownMenu, WindowColour::Secondary, 0xFFFFFFFF,         STR_INFORMATION_TYPE_TIP     ), // information type dropdown
-    MakeWidget({250, 60}, { 11,  10}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH, STR_INFORMATION_TYPE_TIP     ), // information type dropdown button
-    MakeWidget({273, 46}, { 24,  24}, WindowWidgetType::FlatBtn,  WindowColour::Secondary, ImageId(SPR_MAP),            STR_SHOW_GUESTS_ON_MAP_TIP   ), // map
-    MakeWidget({297, 46}, { 24,  24}, WindowWidgetType::FlatBtn,  WindowColour::Secondary, ImageId(SPR_G2_SEARCH),      STR_GUESTS_FILTER_BY_NAME_TIP), // filter by name
-    MakeWidget({321, 46}, { 24,  24}, WindowWidgetType::FlatBtn,  WindowColour::Secondary, ImageId(SPR_TRACK_PEEP),     STR_TRACKED_GUESTS_ONLY_TIP  ), // tracking
-    MakeTab   ({  3, 17},                                                                        STR_INDIVIDUAL_GUESTS_TIP    ), // tab 1
-    MakeTab   ({ 34, 17},                                                                        STR_SUMMARISED_GUESTS_TIP    ), // tab 2
-    MakeWidget({  3, 72}, {344, 255}, WindowWidgetType::Scroll,   WindowColour::Secondary, SCROLL_BOTH                                      ), // guest list
-    kWidgetsEnd,
-};
+    static Widget window_guest_list_widgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeWidget({  0, 43}, {350, 287}, WindowWidgetType::Resize,   WindowColour::Secondary                                                   ), // tab content panel
+        MakeWidget({  5, 59}, { 80,  12}, WindowWidgetType::DropdownMenu, WindowColour::Secondary, STR_ARG_4_PAGE_X                                 ), // page dropdown
+        MakeWidget({ 73, 60}, { 11,  10}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH                               ), // page dropdown button
+        MakeWidget({120, 59}, {142,  12}, WindowWidgetType::DropdownMenu, WindowColour::Secondary, 0xFFFFFFFF,         STR_INFORMATION_TYPE_TIP     ), // information type dropdown
+        MakeWidget({250, 60}, { 11,  10}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH, STR_INFORMATION_TYPE_TIP     ), // information type dropdown button
+        MakeWidget({273, 46}, { 24,  24}, WindowWidgetType::FlatBtn,  WindowColour::Secondary, ImageId(SPR_MAP),            STR_SHOW_GUESTS_ON_MAP_TIP   ), // map
+        MakeWidget({297, 46}, { 24,  24}, WindowWidgetType::FlatBtn,  WindowColour::Secondary, ImageId(SPR_G2_SEARCH),      STR_GUESTS_FILTER_BY_NAME_TIP), // filter by name
+        MakeWidget({321, 46}, { 24,  24}, WindowWidgetType::FlatBtn,  WindowColour::Secondary, ImageId(SPR_TRACK_PEEP),     STR_TRACKED_GUESTS_ONLY_TIP  ), // tracking
+        MakeTab   ({  3, 17},                                                                        STR_INDIVIDUAL_GUESTS_TIP    ), // tab 1
+        MakeTab   ({ 34, 17},                                                                        STR_SUMMARISED_GUESTS_TIP    ), // tab 2
+        MakeWidget({  3, 72}, {344, 255}, WindowWidgetType::Scroll,   WindowColour::Secondary, SCROLL_BOTH                                      ), // guest list
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class GuestListWindow final : public Window
@@ -191,7 +195,7 @@ static Widget window_guest_list_widgets[] = {
                     if (guestRide != nullptr)
                     {
                         ft.Add<StringId>(
-                            guestRide->GetRideTypeDescriptor().HasFlag(RIDE_TYPE_FLAG_IN_RIDE) ? STR_IN_RIDE : STR_ON_RIDE);
+                            guestRide->GetRideTypeDescriptor().HasFlag(RtdFlag::describeAsInside) ? STR_IN_RIDE : STR_ON_RIDE);
                         guestRide->FormatNameTo(ft);
 
                         _selectedFilter = GuestFilterType::Guests;
@@ -233,7 +237,7 @@ static Widget window_guest_list_widgets[] = {
                 }
                 case GuestListFilterType::GuestsThinkingX:
                 {
-                    ft.Add<StringId>(PeepThoughts[index & 0xFF]);
+                    ft.Add<StringId>(kPeepThoughtIds[index & 0xFF]);
 
                     _selectedFilter = GuestFilterType::GuestsThinking;
                     _highlightedIndex = {};
@@ -290,7 +294,7 @@ static Widget window_guest_list_widgets[] = {
                     _trackingOnly = !_trackingOnly;
                     SetWidgetPressed(WIDX_TRACKING, _trackingOnly);
                     Invalidate();
-                    scrolls[0].v_top = 0;
+                    scrolls[0].contentOffsetY = 0;
                     RefreshList();
                     break;
                 case WIDX_FILTER_BY_NAME:
@@ -340,7 +344,7 @@ static Widget window_guest_list_widgets[] = {
                     _tabAnimationIndex = 0;
                     _selectedFilter = {};
                     Invalidate();
-                    scrolls[0].v_top = 0;
+                    scrolls[0].contentOffsetY = 0;
                     RefreshList();
                     break;
                 }
@@ -528,9 +532,9 @@ static Widget window_guest_list_widgets[] = {
             }
 
             auto i = std::max(0, y - widgets[WIDX_GUEST_LIST].bottom + widgets[WIDX_GUEST_LIST].top + 21);
-            if (i < scrolls[0].v_top)
+            if (i < scrolls[0].contentOffsetY)
             {
-                scrolls[0].v_top = i;
+                scrolls[0].contentOffsetY = i;
                 Invalidate();
             }
 
@@ -583,7 +587,7 @@ static Widget window_guest_list_widgets[] = {
                         widgets[WIDX_TRACKING].type = WindowWidgetType::FlatBtn;
                         Invalidate();
                         widgets[WIDX_FILTER_BY_NAME].type = WindowWidgetType::FlatBtn;
-                        scrolls[0].v_top = 0;
+                        scrolls[0].contentOffsetY = 0;
                         RefreshList();
                     }
                     break;
@@ -649,7 +653,8 @@ static Widget window_guest_list_widgets[] = {
         {
             // Tab 1 image
             auto i = (_selectedTab == TabId::Individual ? _tabAnimationIndex & ~3 : 0);
-            i += GetPeepAnimation(PeepSpriteType::Normal).base_image + 1;
+            auto* animObj = findPeepAnimationsObjectForType(AnimationPeepType::Guest);
+            i += animObj->GetPeepAnimation(PeepAnimationGroup::Normal).base_image + 1;
             GfxDrawSprite(
                 dpi, ImageId(i, COLOUR_GREY, COLOUR_DARK_OLIVE_GREEN),
                 windowPos + ScreenCoordsXY{ widgets[WIDX_TAB_1].midX(), widgets[WIDX_TAB_1].bottom - 6 });
@@ -792,7 +797,7 @@ static Widget window_guest_list_widgets[] = {
                 Formatter ft;
                 peep.FormatNameTo(ft);
                 OpenRCT2::FormatStringLegacy(name, sizeof(name), STR_STRINGID, ft.Data());
-                if (!String::Contains(name, _filterName.c_str(), true))
+                if (!String::contains(name, _filterName.c_str(), true))
                 {
                     return false;
                 }
@@ -814,7 +819,7 @@ static Widget window_guest_list_widgets[] = {
 
         bool IsRefreshOfGroupsRequired()
         {
-            uint32_t tick256 = Floor2(GetGameState().CurrentTicks, 256);
+            uint32_t tick256 = floor2(GetGameState().CurrentTicks, 256);
             if (_selectedView == _lastFindGroupsSelectedView)
             {
                 if (_lastFindGroupsWait != 0 || _lastFindGroupsTick == tick256)
@@ -842,7 +847,7 @@ static Widget window_guest_list_widgets[] = {
 
         void RefreshGroups()
         {
-            _lastFindGroupsTick = Floor2(GetGameState().CurrentTicks, 256);
+            _lastFindGroupsTick = floor2(GetGameState().CurrentTicks, 256);
             _lastFindGroupsSelectedView = _selectedView;
             _lastFindGroupsWait = 320;
             _groups.clear();
@@ -932,7 +937,8 @@ static Widget window_guest_list_widgets[] = {
             }
         }
 
-        template<bool TRealNames> static bool CompareGuestItem(const GuestItem& a, const GuestItem& b)
+        template<bool TRealNames>
+        static bool CompareGuestItem(const GuestItem& a, const GuestItem& b)
         {
             const auto* peepA = GetEntity<Peep>(a.Id);
             const auto* peepB = GetEntity<Peep>(b.Id);
@@ -954,7 +960,7 @@ static Widget window_guest_list_widgets[] = {
                     }
                 }
             }
-            return StrLogicalCmp(a.Name, b.Name) < 0;
+            return String::logicalCmp(a.Name, b.Name) < 0;
         }
 
         static GuestItem::CompareFunc GetGuestCompareFunc()
@@ -989,7 +995,8 @@ static Widget window_guest_list_widgets[] = {
 
     void WindowGuestListRefreshList()
     {
-        auto* w = WindowFindByClass(WindowClass::GuestList);
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto* w = windowMgr->FindByClass(WindowClass::GuestList);
         if (w != nullptr)
         {
             static_cast<GuestListWindow*>(w)->RefreshList();

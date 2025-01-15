@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -20,6 +20,7 @@
 #include "actions/LandSetRightsAction.h"
 #include "actions/ResultWithMessage.h"
 #include "audio/audio.h"
+#include "core/EnumUtils.hpp"
 #include "core/Path.hpp"
 #include "core/String.hpp"
 #include "entity/EntityList.h"
@@ -29,18 +30,17 @@
 #include "entity/Staff.h"
 #include "interface/Viewport.h"
 #include "interface/Window_internal.h"
-#include "localisation/Localisation.h"
 #include "localisation/LocalisationService.h"
 #include "management/Finance.h"
 #include "management/NewsItem.h"
 #include "object/DefaultObjects.h"
 #include "object/ObjectManager.h"
 #include "object/ObjectRepository.h"
+#include "peep/PeepAnimations.h"
 #include "rct1/RCT1.h"
 #include "scenario/Scenario.h"
 #include "ui/UiContext.h"
 #include "ui/WindowManager.h"
-#include "util/Util.h"
 #include "windows/Intent.h"
 #include "world/Climate.h"
 #include "world/Entrance.h"
@@ -49,19 +49,18 @@
 #include "world/Scenery.h"
 
 #include <array>
+#include <cassert>
 #include <vector>
 
 using namespace OpenRCT2;
 
-namespace Editor
+namespace OpenRCT2::Editor
 {
     static std::array<std::vector<uint8_t>, EnumValue(ObjectType::Count)> _editorSelectedObjectFlags;
 
     static void ConvertSaveToScenarioCallback(int32_t result, const utf8* path);
     static void SetAllLandOwned();
     static void FinaliseMainView();
-    static bool ReadS4OrS6(const char* path);
-    static bool ReadPark(const char* path);
     static void ClearMapForEditing(bool fromSave);
 
     static void ObjectListLoad()
@@ -130,7 +129,7 @@ namespace Editor
         ToolCancel();
         auto intent = Intent(WindowClass::Loadsave);
         intent.PutExtra(INTENT_EXTRA_LOADSAVE_TYPE, LOADSAVETYPE_LOAD | LOADSAVETYPE_GAME);
-        intent.PutExtra(INTENT_EXTRA_CALLBACK, reinterpret_cast<void*>(ConvertSaveToScenarioCallback));
+        intent.PutExtra(INTENT_EXTRA_CALLBACK, reinterpret_cast<CloseCallback>(ConvertSaveToScenarioCallback));
         ContextOpenIntent(&intent);
     }
 
@@ -215,8 +214,8 @@ namespace Editor
     static void SetAllLandOwned()
     {
         auto& gameState = GetGameState();
-        MapRange range = { 2 * COORDS_XY_STEP, 2 * COORDS_XY_STEP, (gameState.MapSize.x - 3) * COORDS_XY_STEP,
-                           (gameState.MapSize.y - 3) * COORDS_XY_STEP };
+        MapRange range = { 2 * kCoordsXYStep, 2 * kCoordsXYStep, (gameState.MapSize.x - 3) * kCoordsXYStep,
+                           (gameState.MapSize.y - 3) * kCoordsXYStep };
         auto landSetRightsAction = LandSetRightsAction(range, LandSetRightSetting::SetForSale);
         landSetRightsAction.SetFlags(GAME_COMMAND_FLAG_NO_SPEND);
         GameActions::Execute(&landSetRightsAction);
@@ -224,31 +223,6 @@ namespace Editor
         auto landBuyRightsAction = LandBuyRightsAction(range, LandBuyRightSetting::BuyLand);
         landBuyRightsAction.SetFlags(GAME_COMMAND_FLAG_NO_SPEND);
         GameActions::Execute(&landBuyRightsAction);
-    }
-
-    /**
-     *
-     *  rct2: 0x006758C0
-     */
-    bool LoadLandscape(const utf8* path)
-    {
-        // #4996: Make sure the object selection window closes here to prevent unload objects
-        //        after we have loaded a new park.
-        WindowCloseAll();
-
-        auto extension = GetFileExtensionType(path);
-        switch (extension)
-        {
-            case FileExtension::SC6:
-            case FileExtension::SV6:
-            case FileExtension::SC4:
-            case FileExtension::SV4:
-                return ReadS4OrS6(path);
-            case FileExtension::PARK:
-                return ReadPark(path);
-            default:
-                return false;
-        }
     }
 
     static void AfterLoadCleanup(bool loadedFromSave)
@@ -267,49 +241,20 @@ namespace Editor
         FinaliseMainView();
     }
 
-    /**
-     *
-     *  rct2: 0x006758FE
-     */
-    static bool ReadS4OrS6(const char* path)
+    bool LoadLandscape(const utf8* path)
     {
-        auto extensionS = Path::GetExtension(path);
-        const char* extension = extensionS.c_str();
-        auto loadedFromSave = false;
-        const auto loadSuccess = GetContext()->LoadParkFromFile(path);
-        if (!loadSuccess)
+        // #4996: Make sure the object selection window closes here to prevent unload objects
+        //        after we have loaded a new park.
+        WindowCloseAll();
+
+        if (!GetContext()->LoadParkFromFile(path))
             return false;
 
-        if (String::IEquals(extension, ".sv4") || String::IEquals(extension, ".sv6") || String::IEquals(extension, ".sv7") == 0)
-        {
-            loadedFromSave = true;
-        }
+        auto extension = Path::GetExtension(path);
+        bool loadedFromSave = !ParkImporter::ExtensionIsScenario(extension);
 
         AfterLoadCleanup(loadedFromSave);
         return true;
-    }
-
-    static bool ReadPark(const char* path)
-    {
-        try
-        {
-            auto context = GetContext();
-            auto& objManager = context->GetObjectManager();
-            auto importer = ParkImporter::CreateParkFile(context->GetObjectRepository());
-            auto loadResult = importer->Load(path);
-            objManager.LoadObjects(loadResult.RequiredObjects);
-
-            // TODO: Have a separate GameState and exchange once loaded.
-            auto& gameState = GetGameState();
-            importer->Import(gameState);
-
-            AfterLoadCleanup(true);
-            return true;
-        }
-        catch (const std::exception&)
-        {
-            return false;
-        }
     }
 
     static void ClearMapForEditing(bool fromSave)
@@ -354,7 +299,7 @@ namespace Editor
 
             gameState.GuestInitialCash = std::clamp(gameState.GuestInitialCash, 10.00_GBP, MAX_ENTRANCE_FEE);
 
-            gameState.InitialCash = std::min<money64>(GetGameState().InitialCash, 100000);
+            gameState.InitialCash = std::min<money64>(gameState.InitialCash, 100000);
             FinanceResetCashToInitial();
 
             gameState.BankLoan = std::clamp<money64>(gameState.BankLoan, 0.00_GBP, 5000000.00_GBP);
@@ -380,15 +325,17 @@ namespace Editor
             return;
         }
 
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+
         switch (GetGameState().EditorStep)
         {
             case EditorStep::ObjectSelection:
-                if (WindowFindByClass(WindowClass::EditorObjectSelection) != nullptr)
+                if (windowMgr->FindByClass(WindowClass::EditorObjectSelection) != nullptr)
                 {
                     return;
                 }
 
-                if (WindowFindByClass(WindowClass::InstallTrack) != nullptr)
+                if (windowMgr->FindByClass(WindowClass::InstallTrack) != nullptr)
                 {
                     return;
                 }
@@ -401,7 +348,7 @@ namespace Editor
                 ContextOpenWindow(WindowClass::EditorObjectSelection);
                 break;
             case EditorStep::InventionsListSetUp:
-                if (WindowFindByClass(WindowClass::EditorInventionList) != nullptr)
+                if (windowMgr->FindByClass(WindowClass::EditorInventionList) != nullptr)
                 {
                     return;
                 }
@@ -409,7 +356,7 @@ namespace Editor
                 ContextOpenWindow(WindowClass::EditorInventionList);
                 break;
             case EditorStep::OptionsSelection:
-                if (WindowFindByClass(WindowClass::EditorScenarioOptions) != nullptr)
+                if (windowMgr->FindByClass(WindowClass::EditorScenarioOptions) != nullptr)
                 {
                     return;
                 }
@@ -417,7 +364,7 @@ namespace Editor
                 ContextOpenWindow(WindowClass::EditorScenarioOptions);
                 break;
             case EditorStep::ObjectiveSelection:
-                if (WindowFindByClass(WindowClass::EditorObjectiveOptions) != nullptr)
+                if (windowMgr->FindByClass(WindowClass::EditorObjectiveOptions) != nullptr)
                 {
                     return;
                 }
@@ -440,14 +387,13 @@ namespace Editor
         windowManager->SetMainView(gameState.SavedView, gameState.SavedViewZoom, gameState.SavedViewRotation);
 
         ResetAllSpriteQuadrantPlacements();
-        ScenerySetDefaultPlacementConfiguration();
 
+        windowManager->BroadcastIntent(Intent(INTENT_ACTION_SET_DEFAULT_SCENERY_CONFIG));
         windowManager->BroadcastIntent(Intent(INTENT_ACTION_REFRESH_NEW_RIDES));
+        windowManager->BroadcastIntent(Intent(INTENT_ACTION_CLEAR_TILE_INSPECTOR_CLIPBOARD));
 
         gWindowUpdateTicks = 0;
         LoadPalette();
-
-        windowManager->BroadcastIntent(Intent(INTENT_ACTION_CLEAR_TILE_INSPECTOR_CLIPBOARD));
     }
 
     /**
@@ -456,52 +402,66 @@ namespace Editor
      */
     std::pair<ObjectType, StringId> CheckObjectSelection()
     {
-        bool isTrackDesignerManager = gScreenFlags & (SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER);
+        constexpr std::pair<ObjectType, StringId> kBasicCheckPairs[] = {
+            { ObjectType::Ride, STR_AT_LEAST_ONE_RIDE_OBJECT_MUST_BE_SELECTED },
+            { ObjectType::Station, STR_AT_LEAST_ONE_STATION_OBJECT_MUST_BE_SELECTED },
+            { ObjectType::TerrainSurface, STR_AT_LEAST_ONE_TERRAIN_SURFACE_OBJECT_MUST_BE_SELECTED },
+            { ObjectType::TerrainEdge, STR_AT_LEAST_ONE_TERRAIN_EDGE_OBJECT_MUST_BE_SELECTED },
+        };
 
-        if (!isTrackDesignerManager)
+        for (auto& pair : kBasicCheckPairs)
         {
-            if (!EditorCheckObjectGroupAtLeastOneSurfaceSelected(false))
+            if (!EditorCheckObjectGroupAtLeastOneSelected(pair.first))
             {
-                return { ObjectType::FootpathSurface, STR_AT_LEAST_ONE_FOOTPATH_NON_QUEUE_SURFACE_OBJECT_MUST_BE_SELECTED };
-            }
-            if (!EditorCheckObjectGroupAtLeastOneSurfaceSelected(true))
-            {
-                return { ObjectType::FootpathSurface, STR_AT_LEAST_ONE_FOOTPATH_QUEUE_SURFACE_OBJECT_MUST_BE_SELECTED };
-            }
-            if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::FootpathRailings))
-            {
-                return { ObjectType::FootpathRailings, STR_AT_LEAST_ONE_FOOTPATH_RAILING_OBJECT_MUST_BE_SELECTED };
+                return { pair.first, pair.second };
             }
         }
 
-        if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::Ride))
+        // No checks beyond this point apply to the track designer or track designs manager.
+        const bool isTrackDesignerManager = gScreenFlags & (SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER);
+        if (isTrackDesignerManager)
         {
-            return { ObjectType::Ride, STR_AT_LEAST_ONE_RIDE_OBJECT_MUST_BE_SELECTED };
-        }
-        if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::Station))
-        {
-            return { ObjectType::Station, STR_AT_LEAST_ONE_STATION_OBJECT_MUST_BE_SELECTED };
+            return { ObjectType::None, STR_NONE };
         }
 
-        if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::TerrainSurface))
+        if (!EditorCheckObjectGroupAtLeastOneSurfaceSelected(false))
         {
-            return { ObjectType::TerrainSurface, STR_AT_LEAST_ONE_TERRAIN_SURFACE_OBJECT_MUST_BE_SELECTED };
+            return { ObjectType::FootpathSurface, STR_AT_LEAST_ONE_FOOTPATH_NON_QUEUE_SURFACE_OBJECT_MUST_BE_SELECTED };
         }
-        if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::TerrainEdge))
+        if (!EditorCheckObjectGroupAtLeastOneSurfaceSelected(true))
         {
-            return { ObjectType::TerrainEdge, STR_AT_LEAST_ONE_TERRAIN_EDGE_OBJECT_MUST_BE_SELECTED };
+            return { ObjectType::FootpathSurface, STR_AT_LEAST_ONE_FOOTPATH_QUEUE_SURFACE_OBJECT_MUST_BE_SELECTED };
         }
 
-        if (!isTrackDesignerManager)
+        constexpr std::pair<ObjectType, StringId> kParkCheckPairs[] = {
+            { ObjectType::FootpathRailings, STR_AT_LEAST_ONE_FOOTPATH_RAILING_OBJECT_MUST_BE_SELECTED },
+            { ObjectType::ParkEntrance, STR_PARK_ENTRANCE_TYPE_MUST_BE_SELECTED },
+            { ObjectType::Water, STR_WATER_TYPE_MUST_BE_SELECTED },
+            { ObjectType::PeepNames, STR_AT_LEAST_ONE_PEEP_NAMES_OBJECT_MUST_BE_SELECTED },
+        };
+
+        for (auto& pair : kParkCheckPairs)
         {
-            if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::ParkEntrance))
+            if (!EditorCheckObjectGroupAtLeastOneSelected(pair.first))
             {
-                return { ObjectType::ParkEntrance, STR_PARK_ENTRANCE_TYPE_MUST_BE_SELECTED };
+                return { pair.first, pair.second };
             }
+        }
 
-            if (!EditorCheckObjectGroupAtLeastOneSelected(ObjectType::Water))
+        using OpenRCT2::AnimationPeepType;
+        constexpr std::pair<AnimationPeepType, StringId> kPeepCheckPairs[] = {
+            { AnimationPeepType::Guest, STR_AT_LEAST_ONE_GUEST_PEEP_ANIMATIONS_OBJECT_MUST_BE_SELECTED },
+            { AnimationPeepType::Handyman, STR_AT_LEAST_ONE_HANDYMAN_PEEP_ANIMATIONS_OBJECT_MUST_BE_SELECTED },
+            { AnimationPeepType::Mechanic, STR_AT_LEAST_ONE_MECHANIC_PEEP_ANIMATIONS_OBJECT_MUST_BE_SELECTED },
+            { AnimationPeepType::Security, STR_AT_LEAST_ONE_SECURITY_PEEP_ANIMATIONS_OBJECT_MUST_BE_SELECTED },
+            { AnimationPeepType::Entertainer, STR_AT_LEAST_ONE_ENTERTAINER_PEEP_ANIMATIONS_OBJECT_MUST_BE_SELECTED },
+        };
+
+        for (auto& pair : kPeepCheckPairs)
+        {
+            if (!EditorCheckObjectGroupAtLeastOneOfPeepTypeSelected(EnumValue(pair.first)))
             {
-                return { ObjectType::Water, STR_WATER_TYPE_MUST_BE_SELECTED };
+                return { ObjectType::PeepAnimations, pair.second };
             }
         }
 
@@ -586,7 +546,7 @@ namespace Editor
             list[index] |= flags;
         }
     }
-} // namespace Editor
+} // namespace OpenRCT2::Editor
 
 void EditorOpenWindowsForCurrentStep()
 {

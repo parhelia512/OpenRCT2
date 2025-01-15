@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -16,6 +16,8 @@
 #include "../ui/WindowManager.h"
 #include "../windows/Intent.h"
 #include "../world/Park.h"
+
+using namespace OpenRCT2;
 
 MapChangeSizeAction::MapChangeSizeAction(const TileCoordsXY& targetSize)
     : MapChangeSizeAction(targetSize, TileCoordsXY())
@@ -57,7 +59,7 @@ GameActions::Result MapChangeSizeAction::Query() const
 
 GameActions::Result MapChangeSizeAction::Execute() const
 {
-    auto& gameState = OpenRCT2::GetGameState();
+    auto& gameState = GetGameState();
     // Expand map
     while (_targetSize.x > gameState.MapSize.x)
     {

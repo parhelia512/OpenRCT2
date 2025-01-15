@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -19,10 +19,10 @@
 namespace OpenRCT2::Ui::Windows
 {
     // clang-format off
-static Widget _mainWidgets[] = {
-    MakeWidget({0, 0}, {0, 0}, WindowWidgetType::Viewport, WindowColour::Primary),
-    kWidgetsEnd,
-};
+    static Widget _mainWidgets[] = {
+        MakeWidget({0, 0}, {0, 0}, WindowWidgetType::Viewport, WindowColour::Primary),
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class MainWindow final : public Window
@@ -48,11 +48,7 @@ static Widget _mainWidgets[] = {
 
         void OnDraw(DrawPixelInfo& dpi) override
         {
-            // Skip viewport render during preloader
-            if (GetContext()->GetActiveScene() == GetContext()->GetPreloaderScene())
-                return;
-
-            ViewportRender(dpi, viewport, { { dpi.x, dpi.y }, { dpi.x + dpi.width, dpi.y + dpi.height } });
+            ViewportRender(dpi, viewport);
         }
 
     private:

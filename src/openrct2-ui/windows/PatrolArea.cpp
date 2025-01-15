@@ -1,11 +1,13 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
  *
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
+
+#include "../interface/ViewportQuery.h"
 
 #include <openrct2-ui/interface/LandTool.h>
 #include <openrct2-ui/interface/Viewport.h>
@@ -21,7 +23,9 @@
 #include <openrct2/entity/PatrolArea.h>
 #include <openrct2/entity/Staff.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/sprites.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <openrct2/world/Park.h>
 
 namespace OpenRCT2::Ui::Windows
@@ -41,13 +45,13 @@ namespace OpenRCT2::Ui::Windows
     };
 
     // clang-format off
-static Widget PatrolAreaWidgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget     ({27, 17}, {44, 32}, WindowWidgetType::ImgBtn,  WindowColour::Primary , ImageId(SPR_LAND_TOOL_SIZE_0)                                           ), // preview box
-    MakeRemapWidget({28, 18}, {16, 16}, WindowWidgetType::TrnBtn,  WindowColour::Tertiary, SPR_LAND_TOOL_DECREASE,      STR_ADJUST_SMALLER_PATROL_AREA_TIP), // decrement size
-    MakeRemapWidget({54, 32}, {16, 16}, WindowWidgetType::TrnBtn,  WindowColour::Tertiary, SPR_LAND_TOOL_INCREASE,      STR_ADJUST_LARGER_PATROL_AREA_TIP ), // increment size
-    kWidgetsEnd,
-};
+    static Widget PatrolAreaWidgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeWidget     ({27, 17}, {44, 32}, WindowWidgetType::ImgBtn,  WindowColour::Primary , ImageId(SPR_LAND_TOOL_SIZE_0)                                  ), // preview box
+        MakeRemapWidget({28, 18}, {16, 16}, WindowWidgetType::TrnBtn,  WindowColour::Tertiary, SPR_LAND_TOOL_DECREASE,      STR_ADJUST_SMALLER_PATROL_AREA_TIP), // decrement size
+        MakeRemapWidget({54, 32}, {16, 16}, WindowWidgetType::TrnBtn,  WindowColour::Tertiary, SPR_LAND_TOOL_INCREASE,      STR_ADJUST_LARGER_PATROL_AREA_TIP ), // increment size
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class PatrolAreaWindow final : public Window
@@ -266,17 +270,14 @@ static Widget PatrolAreaWidgets[] = {
 
         bool PatrolAreaToolIsActive()
         {
-            if (!(InputTestFlag(INPUT_FLAG_TOOL_ACTIVE)))
-                return false;
-            if (gCurrentToolWidget.window_classification != WindowClass::PatrolArea)
-                return false;
-            return true;
+            return isToolActive(WindowClass::PatrolArea);
         }
 
         bool IsStaffWindowOpen()
         {
             // If staff window for this patrol area was closed, tool is no longer active
-            auto staffWindow = WindowFindByNumber(WindowClass::Peep, _staffId);
+            auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+            auto staffWindow = windowMgr->FindByNumber(WindowClass::Peep, _staffId);
             return staffWindow != nullptr;
         }
 
@@ -305,7 +306,8 @@ static Widget PatrolAreaWidgets[] = {
 
     EntityId WindowPatrolAreaGetCurrentStaffId()
     {
-        auto current = reinterpret_cast<PatrolAreaWindow*>(WindowFindByClass(WindowClass::PatrolArea));
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto current = reinterpret_cast<PatrolAreaWindow*>(windowMgr->FindByClass(WindowClass::PatrolArea));
         return current != nullptr ? current->GetStaffId() : EntityId::GetNull();
     }
 } // namespace OpenRCT2::Ui::Windows

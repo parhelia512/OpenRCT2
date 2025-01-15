@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,12 +11,12 @@
 
 #include "../Cheats.h"
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../GameState.h"
 #include "../core/MemoryStream.h"
 #include "../drawing/Drawing.h"
 #include "../entity/EntityList.h"
 #include "../interface/Window.h"
-#include "../localisation/Localisation.h"
 #include "../management/NewsItem.h"
 #include "../peep/RideUseSystem.h"
 #include "../ride/Ride.h"
@@ -26,6 +26,7 @@
 #include "../world/Banner.h"
 #include "../world/Park.h"
 #include "../world/TileElementsView.h"
+#include "../world/tile_element/TrackElement.h"
 #include "MazeSetTrackAction.h"
 #include "TrackRemoveAction.h"
 
@@ -66,7 +67,7 @@ GameActions::Result RideDemolishAction::Query() const
 
     if ((ride->lifecycle_flags & (RIDE_LIFECYCLE_INDESTRUCTIBLE | RIDE_LIFECYCLE_INDESTRUCTIBLE_TRACK)
          && _modifyType == RIDE_MODIFY_DEMOLISH)
-        && !GetGameState().Cheats.MakeAllDestructible)
+        && !GetGameState().Cheats.makeAllDestructible)
     {
         return GameActions::Result(
             GameActions::Status::NoClearance, STR_CANT_DEMOLISH_RIDE,

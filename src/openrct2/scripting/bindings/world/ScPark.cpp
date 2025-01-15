@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,21 +9,21 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "ScPark.hpp"
+    #include "ScPark.hpp"
 
-#    include "../../../Context.h"
-#    include "../../../Date.h"
-#    include "../../../GameState.h"
-#    include "../../../common.h"
-#    include "../../../core/String.hpp"
-#    include "../../../entity/Guest.h"
-#    include "../../../management/Finance.h"
-#    include "../../../management/NewsItem.h"
-#    include "../../../windows/Intent.h"
-#    include "../../../world/Park.h"
-#    include "../../Duktape.hpp"
-#    include "../../ScriptEngine.h"
-#    include "ScParkMessage.hpp"
+    #include "../../../Context.h"
+    #include "../../../Date.h"
+    #include "../../../GameState.h"
+    #include "../../../core/String.hpp"
+    #include "../../../entity/Guest.h"
+    #include "../../../management/Finance.h"
+    #include "../../../management/NewsItem.h"
+    #include "../../../windows/Intent.h"
+    #include "../../../world/Park.h"
+    #include "../../Duktape.hpp"
+    #include "../../ScriptEngine.h"
+    #include "../entity/ScGuest.hpp"
+    #include "ScParkMessage.hpp"
 
 namespace OpenRCT2::Scripting
 {
@@ -147,6 +147,13 @@ namespace OpenRCT2::Scripting
     int32_t ScPark::guestGenerationProbability_get() const
     {
         return GetGameState().GuestGenerationProbability;
+    }
+
+    DukValue ScPark::generateGuest()
+    {
+        ThrowIfGameStateNotMutable();
+        auto guest = Park::GenerateGuest();
+        return GetObjectAsDukValue(_context, std::make_shared<ScGuest>(guest->Id));
     }
 
     money64 ScPark::guestInitialCash_get() const
@@ -385,7 +392,7 @@ namespace OpenRCT2::Scripting
                 text = message["text"].as_string();
                 if (type == News::ItemType::Blank)
                 {
-                    assoc = static_cast<uint32_t>(((COORDS_NULL & 0xFFFF) << 16) | (COORDS_NULL & 0xFFFF));
+                    assoc = static_cast<uint32_t>(((kCoordsNull & 0xFFFF) << 16) | (kCoordsNull & 0xFFFF));
                 }
 
                 auto dukSubject = message["subject"];
@@ -429,6 +436,7 @@ namespace OpenRCT2::Scripting
         dukglue_register_property(ctx, &ScPark::guests_get, nullptr, "guests");
         dukglue_register_property(ctx, &ScPark::suggestedGuestMaximum_get, nullptr, "suggestedGuestMaximum");
         dukglue_register_property(ctx, &ScPark::guestGenerationProbability_get, nullptr, "guestGenerationProbability");
+        dukglue_register_method(ctx, &ScPark::generateGuest, "generateGuest");
         dukglue_register_property(ctx, &ScPark::guestInitialCash_get, nullptr, "guestInitialCash");
         dukglue_register_property(ctx, &ScPark::guestInitialHappiness_get, nullptr, "guestInitialHappiness");
         dukglue_register_property(ctx, &ScPark::guestInitialHunger_get, nullptr, "guestInitialHunger");

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,6 +10,7 @@
 #pragma once
 
 #include "Colour.h"
+#include "ScrollArea.h"
 #include "Window.h"
 
 #include <list>
@@ -21,9 +22,9 @@ struct ResearchItem;
 struct RCTObjectEntry;
 
 #ifdef __WARN_SUGGEST_FINAL_METHODS__
-#    pragma GCC diagnostic push
-#    pragma GCC diagnostic ignored "-Wsuggest-final-methods"
-#    pragma GCC diagnostic ignored "-Wsuggest-final-types"
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wsuggest-final-methods"
+    #pragma GCC diagnostic ignored "-Wsuggest-final-types"
 #endif
 
 /**
@@ -50,7 +51,7 @@ struct WindowBase
         RideId rideId;
     };
     uint16_t flags{};
-    ScrollBar scrolls[3];
+    OpenRCT2::ScrollArea scrolls[3];
     uint16_t no_list_items{};     // 0 for no items
     int16_t selected_list_item{}; // -1 for none selected
     std::optional<Focus> focus;
@@ -71,7 +72,6 @@ struct WindowBase
     EntityId viewport_smart_follow_sprite{ EntityId::GetNull() }; // Handles setting viewport target sprite etc
 
     void SetLocation(const CoordsXYZ& coords);
-    void ScrollToViewport();
     void Invalidate();
     void RemoveViewport();
 
@@ -84,6 +84,10 @@ struct WindowBase
     // Events
     virtual void OnOpen()
     {
+    }
+    virtual bool CanClose()
+    {
+        return true;
     }
     virtual void OnClose()
     {
@@ -166,16 +170,10 @@ struct WindowBase
     virtual void OnLanguageChange()
     {
     }
-
-    void ResizeFrame();
-    void ResizeFrameWithPage();
-
-    void ResizeSpinner(WidgetIndex widgetIndex, const ScreenCoordsXY& origin, const ScreenSize& size);
-    void ResizeDropdown(WidgetIndex widgetIndex, const ScreenCoordsXY& origin, const ScreenSize& size);
 };
 
 #ifdef __WARN_SUGGEST_FINAL_METHODS__
-#    pragma GCC diagnostic pop
+    #pragma GCC diagnostic pop
 #endif
 
 // rct2: 0x01420078

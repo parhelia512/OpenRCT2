@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -16,7 +16,7 @@
 #include <openrct2/Context.h>
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/drawing/Text.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/localisation/StringIds.h>
 #include <openrct2/object/ObjectManager.h>
 #include <openrct2/sprites.h>
 
@@ -26,29 +26,30 @@ namespace OpenRCT2::Ui::Windows
     static constexpr int32_t WW = 400;
     static constexpr int32_t WH = 200;
 
-    // clang-format off
-enum WindowAssetPacksWidgetIdx {
-    WIDX_BACKGROUND,
-    WIDX_TITLE,
-    WIDX_CLOSE,
-    WIDX_HIGH_LABEL,
-    WIDX_LIST,
-    WIDX_LOW_LABEL,
-    WIDX_MOVE_UP,
-    WIDX_MOVE_DOWN,
-    WIDX_APPLY,
-};
+    enum WindowAssetPacksWidgetIdx
+    {
+        WIDX_BACKGROUND,
+        WIDX_TITLE,
+        WIDX_CLOSE,
+        WIDX_HIGH_LABEL,
+        WIDX_LIST,
+        WIDX_LOW_LABEL,
+        WIDX_MOVE_UP,
+        WIDX_MOVE_DOWN,
+        WIDX_APPLY,
+    };
 
-static Widget WindowAssetPacksWidgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::LabelCentred,  WindowColour::Secondary, STR_HIGH_PRIORITY),
-    MakeWidget({ 0, 0 }, { 0, 147 }, WindowWidgetType::Scroll,  WindowColour::Secondary, SCROLL_VERTICAL),
-    MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::LabelCentred,  WindowColour::Secondary, STR_LOW_PRIORITY),
-    MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::FlatBtn, WindowColour::Secondary, ImageId(SPR_G2_ARROW_UP), STR_INCREASE_PRIOTITY_TIP),
-    MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::FlatBtn, WindowColour::Secondary, ImageId(SPR_G2_ARROW_DOWN), STR_DECREASE_PRIOTITY_TIP),
-    MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::FlatBtn, WindowColour::Secondary, ImageId(SPR_G2_RELOAD), STR_RELOAD_ASSET_PACKS_TIP),
-    kWidgetsEnd,
-};
+    // clang-format off
+    static Widget WindowAssetPacksWidgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::LabelCentred,  WindowColour::Secondary, STR_HIGH_PRIORITY),
+        MakeWidget({ 0, 0 }, { 0, 147 }, WindowWidgetType::Scroll,  WindowColour::Secondary, SCROLL_VERTICAL),
+        MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::LabelCentred,  WindowColour::Secondary, STR_LOW_PRIORITY),
+        MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::FlatBtn, WindowColour::Secondary, ImageId(SPR_G2_ARROW_UP), STR_INCREASE_PRIOTITY_TIP),
+        MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::FlatBtn, WindowColour::Secondary, ImageId(SPR_G2_ARROW_DOWN), STR_DECREASE_PRIOTITY_TIP),
+        MakeWidget({ 0, 0 }, { 0,   0 }, WindowWidgetType::FlatBtn, WindowColour::Secondary, ImageId(SPR_G2_RELOAD), STR_RELOAD_ASSET_PACKS_TIP),
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class AssetPacksWindow final : public Window
@@ -264,7 +265,7 @@ static Widget WindowAssetPacksWidgets[] = {
             {
                 auto checkmark = Formatter();
                 checkmark.Add<StringId>(STR_STRING);
-                checkmark.Add<char*>(CheckBoxMarkString);
+                checkmark.Add<char*>(kCheckMarkString);
                 DrawTextBasic(
                     dpi, ScreenCoordsXY{ rect.GetLeft() + 1, rect.GetTop() }, STR_WINDOW_COLOUR_2_STRINGID, checkmark);
             }

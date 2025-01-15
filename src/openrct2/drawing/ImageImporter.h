@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "../core/EnumUtils.hpp"
 #include "../core/Imaging.h"
 #include "../core/JsonFwd.hpp"
 #include "Drawing.h"
@@ -27,10 +28,10 @@ namespace OpenRCT2::Drawing
         Dithering,
     };
 
-    enum ImportFlags : uint8_t
+    enum class ImportFlags : uint8_t
     {
-        None = 0,
-        RLE = 1 << 1,
+        RLE,
+        NoDrawOnZoom,
     };
 
     enum class Palette : uint8_t
@@ -43,7 +44,7 @@ namespace OpenRCT2::Drawing
     {
         ScreenCoordsXY offset{};
         Palette palette = Palette::OpenRCT2;
-        ImportFlags importFlags = ImportFlags::RLE;
+        uint8_t importFlags = EnumToFlag(ImportFlags::RLE);
         ImportMode importMode = ImportMode::Default;
         ScreenCoordsXY srcOffset{};
         ScreenSize srcSize{};
@@ -92,7 +93,7 @@ namespace OpenRCT2::Drawing
     ImageImportMeta createImageImportMetaFromJson(json_t& input);
 } // namespace OpenRCT2::Drawing
 
-constexpr GamePalette StandardPalette = { {
+constexpr OpenRCT2::Drawing::GamePalette StandardPalette = { {
     // 0 (Unused/Transparent)
     { 0, 0, 0, 255 },
 

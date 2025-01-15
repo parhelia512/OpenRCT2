@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,22 +9,24 @@
 
 #ifndef NO_TTF
 
-#    include <mutex>
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wdocumentation"
-#    include <ft2build.h>
-#    include FT_FREETYPE_H
-#    pragma clang diagnostic pop
+    #include "../Diagnostic.h"
 
-#    include "../OpenRCT2.h"
-#    include "../core/Numerics.hpp"
-#    include "../core/String.hpp"
-#    include "../drawing/Font.h"
-#    include "../localisation/LocalisationService.h"
-#    include "../platform/Platform.h"
-#    include "../util/Util.h"
-#    include "DrawingLock.hpp"
-#    include "TTF.h"
+    #include <mutex>
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdocumentation"
+    #include <ft2build.h>
+    #include FT_FREETYPE_H
+    #pragma clang diagnostic pop
+
+    #include "../OpenRCT2.h"
+    #include "../core/EnumUtils.hpp"
+    #include "../core/Numerics.hpp"
+    #include "../core/String.hpp"
+    #include "../drawing/Font.h"
+    #include "../localisation/LocalisationService.h"
+    #include "../platform/Platform.h"
+    #include "DrawingLock.hpp"
+    #include "TTF.h"
 
 using namespace OpenRCT2;
 
@@ -216,7 +218,7 @@ TTFSurface* TTFSurfaceCacheGetOrAdd(TTF_Font* font, std::string_view text)
         // Check if entry is a hit
         if (entry->surface == nullptr)
             break;
-        if (entry->font == font && String::Equals(entry->text, text))
+        if (entry->font == font && String::equals(entry->text, text))
         {
             _ttfSurfaceCacheHitCount++;
             entry->lastUseTick = gCurrentDrawCount;
@@ -290,7 +292,7 @@ uint32_t TTFGetWidthCacheGetOrAdd(TTF_Font* font, std::string_view text)
         // Check if entry is a hit
         if (entry->text.empty())
             break;
-        if (entry->font == font && String::Equals(entry->text, text))
+        if (entry->font == font && String::equals(entry->text, text))
         {
             _ttfGetWidthCacheHitCount++;
             entry->lastUseTick = gCurrentDrawCount;
@@ -358,7 +360,7 @@ void TTFFreeSurface(TTFSurface* surface)
 
 #else
 
-#    include "TTF.h"
+    #include "TTF.h"
 
 bool TTFInitialise()
 {

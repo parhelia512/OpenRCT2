@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,9 +12,10 @@
 #include <SDL.h>
 #include <cmath>
 #include <memory>
+#include <openrct2/Diagnostic.h>
 #include <openrct2/Game.h>
-#include <openrct2/common.h>
 #include <openrct2/config/Config.h>
+#include <openrct2/core/Guard.hpp>
 #include <openrct2/drawing/IDrawingEngine.h>
 #include <openrct2/drawing/LightFX.h>
 #include <openrct2/drawing/X8DrawingEngine.h>
@@ -61,6 +62,14 @@ public:
 
     ~HardwareDisplayDrawingEngine() override
     {
+        if (_screenTexture != nullptr)
+        {
+            SDL_DestroyTexture(_screenTexture);
+        }
+        if (_scaledScreenTexture != nullptr)
+        {
+            SDL_DestroyTexture(_scaledScreenTexture);
+        }
         SDL_FreeFormat(_screenTextureFormat);
         SDL_DestroyRenderer(_sdlRenderer);
     }
@@ -75,11 +84,15 @@ public:
         if (_useVsync != vsync)
         {
             _useVsync = vsync;
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+            SDL_RenderSetVSync(_sdlRenderer, vsync ? 1 : 0);
+#else
             SDL_DestroyRenderer(_sdlRenderer);
             _screenTexture = nullptr;
             _scaledScreenTexture = nullptr;
             Initialise();
             Resize(_uiContext->GetWidth(), _uiContext->GetHeight());
+#endif
         }
     }
 
@@ -137,7 +150,9 @@ public:
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
             _screenTexture = SDL_CreateTexture(_sdlRenderer, pixelFormat, SDL_TEXTUREACCESS_STREAMING, width, height);
-            Guard::Assert(_screenTexture != nullptr, "Failed to create screen texture: %s", SDL_GetError());
+            Guard::Assert(
+                _screenTexture != nullptr, "Failed to create unscaled screen texture (%ux%u, pixelFormat = %u): %s", width,
+                height, pixelFormat, SDL_GetError());
 
             SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, scaleQualityBuffer);
 
@@ -145,12 +160,17 @@ public:
             _scaledScreenTexture = SDL_CreateTexture(
                 _sdlRenderer, pixelFormat, SDL_TEXTUREACCESS_TARGET, width * scale, height * scale);
 
-            Guard::Assert(_scaledScreenTexture != nullptr, "Failed to create scaled screen texture: %s", SDL_GetError());
+            Guard::Assert(
+                _scaledScreenTexture != nullptr,
+                "Failed to create scaled screen texture (%ux%u, scale = %u, pixelFormat = %u): %s", width, height, scale,
+                pixelFormat, SDL_GetError());
         }
         else
         {
             _screenTexture = SDL_CreateTexture(_sdlRenderer, pixelFormat, SDL_TEXTUREACCESS_STREAMING, width, height);
-            Guard::Assert(_screenTexture != nullptr, "Failed to create screen texture: %s", SDL_GetError());
+            Guard::Assert(
+                _screenTexture != nullptr, "Failed to create screen texture (%ux%u, pixelFormat = %u): %s", width, height,
+                pixelFormat, SDL_GetError());
         }
 
         uint32_t format;
@@ -158,6 +178,8 @@ public:
         _screenTextureFormat = SDL_AllocFormat(format);
 
         ConfigureBits(width, height, width);
+
+        _drawingContext->Clear(_bitsDPI, PALETTE_INDEX_10);
     }
 
     void SetPalette(const GamePalette& palette) override
@@ -171,7 +193,7 @@ public:
 
             if (Config::Get().general.EnableLightFx)
             {
-                auto& lightPalette = LightFXGetPalette();
+                auto& lightPalette = LightFx::GetPalette();
                 for (int32_t i = 0; i < 256; i++)
                 {
                     const auto& src = lightPalette[i];
@@ -216,7 +238,7 @@ private:
             int32_t pitch;
             if (SDL_LockTexture(_screenTexture, nullptr, &pixels, &pitch) == 0)
             {
-                LightFXRenderToTexture(pixels, pitch, _bits, _width, _height, _paletteHWMapped, _lightPaletteHWMapped);
+                LightFx::RenderToTexture(pixels, pitch, _bits, _width, _height, _paletteHWMapped, _lightPaletteHWMapped);
                 SDL_UnlockTexture(_screenTexture);
             }
         }

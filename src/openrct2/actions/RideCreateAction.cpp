@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,12 +11,14 @@
 
 #include "../Cheats.h"
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../GameState.h"
 #include "../core/Memory.hpp"
 #include "../core/MemoryStream.h"
 #include "../interface/Window.h"
-#include "../localisation/Date.h"
+#include "../localisation/Localisation.Date.h"
 #include "../localisation/StringIds.h"
+#include "../object/ObjectLimits.h"
 #include "../object/ObjectManager.h"
 #include "../rct1/RCT1.h"
 #include "../ride/Ride.h"
@@ -26,10 +28,12 @@
 #include "../scenario/Scenario.h"
 #include "../world/Park.h"
 
+#include <algorithm>
+
 using namespace OpenRCT2;
 
 RideCreateAction::RideCreateAction(
-    int32_t rideType, ObjectEntryIndex subType, int32_t colour1, int32_t colour2, ObjectEntryIndex entranceObjectIndex)
+    ride_type_t rideType, ObjectEntryIndex subType, colour_t colour1, colour_t colour2, ObjectEntryIndex entranceObjectIndex)
     : _rideType(rideType)
     , _subType(subType)
     , _entranceObjectIndex(entranceObjectIndex)
@@ -47,12 +51,12 @@ void RideCreateAction::AcceptParameters(GameActionParameterVisitor& visitor)
     visitor.Visit("colour2", _colour2);
 }
 
-int32_t RideCreateAction::GetRideType() const
+ride_type_t RideCreateAction::GetRideType() const
 {
     return _rideType;
 }
 
-int32_t RideCreateAction::GetRideObject() const
+ObjectEntryIndex RideCreateAction::GetRideObject() const
 {
     return _subType;
 }
@@ -87,7 +91,7 @@ GameActions::Result RideCreateAction::Query() const
     }
 
     int32_t rideEntryIndex = RideGetEntryIndex(_rideType, _subType);
-    if (rideEntryIndex >= MAX_RIDE_OBJECTS)
+    if (rideEntryIndex >= kMaxRideObjects)
     {
         LOG_ERROR("Ride entry not found for rideType %d, subType %d", _rideType, _subType);
         return GameActions::Result(
@@ -145,22 +149,18 @@ GameActions::Result RideCreateAction::Execute() const
     ride->overall_view.SetNull();
     ride->SetNameToDefault();
 
-    for (auto& station : ride->GetStations())
-    {
-        station.Start.SetNull();
-        station.Entrance.SetNull();
-        station.Exit.SetNull();
-        station.TrainAtStation = RideStation::kNoTrain;
-        station.QueueTime = 0;
-        station.SegmentLength = 0;
-        station.QueueLength = 0;
-        station.Length = 0;
-        station.Height = 0;
-    }
+    // Default initialize all stations.
+    RideStation station{};
+    station.Start.SetNull();
+    station.Entrance.SetNull();
+    station.Exit.SetNull();
+    std::ranges::fill(ride->GetStations(), station);
 
     ride->status = RideStatus::Closed;
     ride->NumTrains = 1;
-    if (GetGameState().Cheats.DisableTrainLengthLimit)
+
+    auto& gameState = GetGameState();
+    if (gameState.Cheats.disableTrainLengthLimit)
     {
         // Reduce amount of proposed trains to prevent 32 trains from always spawning when limits are disabled
         if (rideEntry->cars_per_flat_ride == NoFlatRideCars)
@@ -184,13 +184,13 @@ GameActions::Result RideCreateAction::Execute() const
     ride->depart_flags = RIDE_DEPART_WAIT_FOR_MINIMUM_LENGTH | 3;
 
     const auto& rtd = ride->GetRideTypeDescriptor();
-    if (rtd.HasFlag(RIDE_TYPE_FLAG_ALLOW_MUSIC))
+    if (rtd.HasFlag(RtdFlag::allowMusic))
     {
         auto& objManager = OpenRCT2::GetContext()->GetObjectManager();
         ride->music = objManager.GetLoadedObjectEntryIndex(rtd.DefaultMusic);
         if (ride->music != OBJECT_ENTRY_INDEX_NULL)
         {
-            if (rtd.HasFlag(RIDE_TYPE_FLAG_MUSIC_ON_DEFAULT))
+            if (rtd.HasFlag(RtdFlag::hasMusicByDefault))
             {
                 ride->lifecycle_flags |= RIDE_LIFECYCLE_MUSIC;
             }
@@ -202,9 +202,8 @@ GameActions::Result RideCreateAction::Execute() const
 
     ride->lift_hill_speed = rtd.LiftData.minimum_speed;
 
-    ride->excitement = kRideRatingUndefined;
+    ride->ratings.setNull();
 
-    auto& gameState = GetGameState();
     if (!(gameState.Park.Flags & PARK_FLAGS_NO_MONEY))
     {
         for (auto i = 0; i < RCT2::ObjectLimits::MaxShopItemsPerRideEntry; i++)
@@ -233,7 +232,7 @@ GameActions::Result RideCreateAction::Execute() const
             ride->price[0] = 0;
         }
 
-        if (rtd.HasFlag(RIDE_TYPE_FLAG_IS_TOILET))
+        if (rtd.specialType == RtdSpecialType::toilet)
         {
             if (ShopItemHasCommonPrice(ShopItem::Admission))
             {
@@ -261,7 +260,7 @@ GameActions::Result RideCreateAction::Execute() const
         }
 
         // Set the on-ride photo price, whether the ride has one or not (except shops).
-        if (!rtd.HasFlag(RIDE_TYPE_FLAG_IS_SHOP_OR_FACILITY) && ShopItemHasCommonPrice(ShopItem::Photo))
+        if (!rtd.HasFlag(RtdFlag::isShopOrFacility) && ShopItemHasCommonPrice(ShopItem::Photo))
         {
             auto price = ShopItemGetCommonPrice(ride, ShopItem::Photo);
             if (price != kMoney64Undefined)
@@ -287,7 +286,7 @@ GameActions::Result RideCreateAction::Execute() const
     ride->profit = kMoney64Undefined;
 
     ride->entrance_style = OBJECT_ENTRY_INDEX_NULL;
-    if (rtd.HasFlag(RIDE_TYPE_FLAG_HAS_ENTRANCE_EXIT))
+    if (rtd.HasFlag(RtdFlag::hasEntranceAndExit))
     {
         ride->entrance_style = _entranceObjectIndex;
     }

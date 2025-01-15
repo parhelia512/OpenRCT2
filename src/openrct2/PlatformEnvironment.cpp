@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,13 +9,14 @@
 
 #include "PlatformEnvironment.h"
 
+#include "Diagnostic.h"
 #include "OpenRCT2.h"
 #include "config/Config.h"
+#include "core/EnumUtils.hpp"
 #include "core/File.h"
 #include "core/Path.hpp"
 #include "core/String.hpp"
 #include "platform/Platform.h"
-#include "util/Util.h"
 
 using namespace OpenRCT2;
 
@@ -38,26 +39,27 @@ static constexpr const char* DirectoryNamesRCT2[] = {
 };
 
 static constexpr u8string_view DirectoryNamesOpenRCT2[] = {
-    u8"data",       // DATA
-    u8"landscape",  // LANDSCAPE
-    u8"language",   // LANGUAGE
-    u8"chatlogs",   // LOG_CHAT
-    u8"serverlogs", // LOG_SERVER
-    u8"keys",       // NETWORK_KEY
-    u8"object",     // OBJECT
-    u8"plugin",     // PLUGIN
-    u8"save",       // SAVE
-    u8"scenario",   // SCENARIO
-    u8"screenshot", // SCREENSHOT
-    u8"sequence",   // SEQUENCE
-    u8"shaders",    // SHADER
-    u8"themes",     // THEME
-    u8"track",      // TRACK
-    u8"heightmap",  // HEIGHTMAP
-    u8"replay",     // REPLAY
-    u8"desyncs",    // DESYNCS
-    u8"crash",      // CRASH
-    u8"assetpack",  // ASSET_PACK
+    u8"data",             // DATA
+    u8"landscape",        // LANDSCAPE
+    u8"language",         // LANGUAGE
+    u8"chatlogs",         // LOG_CHAT
+    u8"serverlogs",       // LOG_SERVER
+    u8"keys",             // NETWORK_KEY
+    u8"object",           // OBJECT
+    u8"plugin",           // PLUGIN
+    u8"save",             // SAVE
+    u8"scenario",         // SCENARIO
+    u8"screenshot",       // SCREENSHOT
+    u8"sequence",         // SEQUENCE
+    u8"shaders",          // SHADER
+    u8"themes",           // THEME
+    u8"track",            // TRACK
+    u8"heightmap",        // HEIGHTMAP
+    u8"replay",           // REPLAY
+    u8"desyncs",          // DESYNCS
+    u8"crash",            // CRASH
+    u8"assetpack",        // ASSET_PACK
+    u8"scenario_patches", // SCENARIO_PATCHES
 };
 
 static constexpr u8string_view FileNames[] = {
@@ -137,7 +139,7 @@ public:
         if (_usingRCTClassic && base == DIRBASE::RCT2 && did == DIRID::DATA)
         {
             // Special case, handle RCT Classic css ogg files
-            if (String::StartsWith(fileName, "css", true) && String::EndsWith(fileName, ".dat", true))
+            if (String::startsWith(fileName, "css", true) && String::endsWith(fileName, ".dat", true))
             {
                 alternativeFilename = fileName.substr(0, fileName.size() - 3);
                 alternativeFilename.append("ogg");

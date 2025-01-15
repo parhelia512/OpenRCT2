@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -13,6 +13,7 @@
 #include "../OpenRCT2.h"
 #include "../PlatformEnvironment.h"
 #include "../config/Config.h"
+#include "../core/EnumUtils.hpp"
 #include "../core/File.h"
 #include "../core/FileStream.h"
 #include "../core/Memory.hpp"
@@ -29,6 +30,7 @@
 #include "../ui/UiContext.h"
 #include "../util/Util.h"
 #include "../world/Climate.h"
+#include "../world/tile_element/SurfaceElement.h"
 #include "AudioChannel.h"
 #include "AudioContext.h"
 #include "AudioMixer.h"
@@ -202,7 +204,7 @@ namespace OpenRCT2::Audio
     static void Play(IAudioSource* audioSource, int32_t volume, int32_t pan)
     {
         int32_t mixerPan = 0;
-        if (pan != AUDIO_PLAY_AT_CENTRE)
+        if (pan != kAudioPlayAtCentre)
         {
             int32_t x2 = pan << 16;
             uint16_t screenWidth = std::max<int32_t>(64, OpenRCT2::GetContext()->GetUiContext()->GetWidth());

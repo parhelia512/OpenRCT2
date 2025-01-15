@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,6 +11,7 @@
 
 #include "AssetPack.h"
 #include "Context.h"
+#include "Diagnostic.h"
 #include "PlatformEnvironment.h"
 #include "config/Config.h"
 #include "core/Console.hpp"
@@ -86,7 +87,7 @@ void AssetPackManager::Scan(const fs::path& directory)
         if (!entry.is_directory())
         {
             auto path = entry.path().u8string();
-            if (String::EndsWith(path, ".parkap", true))
+            if (String::endsWith(path, ".parkap", true))
             {
                 AddAssetPack(path);
             }
@@ -142,7 +143,8 @@ void AssetPackManager::AddAssetPack(const fs::path& path)
     }
 }
 
-template<typename TFunc> static void EnumerateCommaSeparatedList(std::string_view csl, TFunc func)
+template<typename TFunc>
+static void EnumerateCommaSeparatedList(std::string_view csl, TFunc func)
 {
     size_t elStart = 0;
     for (size_t i = 0; i <= csl.size(); i++)

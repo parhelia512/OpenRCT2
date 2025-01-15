@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,16 +11,17 @@
 
 #include "../Cheats.h"
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../GameState.h"
 #include "../core/MemoryStream.h"
 #include "../drawing/Drawing.h"
 #include "../entity/EntityRegistry.h"
 #include "../entity/Staff.h"
 #include "../interface/Window.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../management/Finance.h"
-#include "../peep/PeepAnimationData.h"
+#include "../object/ObjectManager.h"
+#include "../object/PeepAnimationsObject.h"
 #include "../ride/Ride.h"
 #include "../scenario/Scenario.h"
 #include "../ui/UiContext.h"
@@ -32,19 +33,11 @@
 
 using namespace OpenRCT2;
 
-/* rct2: 0x009929FC */
-static constexpr PeepSpriteType spriteTypes[] = {
-    PeepSpriteType::Handyman,
-    PeepSpriteType::Mechanic,
-    PeepSpriteType::Security,
-    PeepSpriteType::EntertainerPanda,
-};
-
 StaffHireNewAction::StaffHireNewAction(
-    bool autoPosition, StaffType staffType, EntertainerCostume entertainerType, uint32_t staffOrders)
+    bool autoPosition, StaffType staffType, ObjectEntryIndex costumeIndex, uint32_t staffOrders)
     : _autoPosition(autoPosition)
     , _staffType(static_cast<uint8_t>(staffType))
-    , _entertainerType(entertainerType)
+    , _costumeIndex(costumeIndex)
     , _staffOrders(staffOrders)
 {
 }
@@ -53,7 +46,7 @@ void StaffHireNewAction::AcceptParameters(GameActionParameterVisitor& visitor)
 {
     visitor.Visit("autoPosition", _autoPosition);
     visitor.Visit("staffType", _staffType);
-    visitor.Visit("entertainerType", _entertainerType);
+    visitor.Visit("costumeIndex", _costumeIndex);
     visitor.Visit("staffOrders", _staffOrders);
 }
 
@@ -66,7 +59,7 @@ void StaffHireNewAction::Serialise(DataSerialiser& stream)
 {
     GameAction::Serialise(stream);
 
-    stream << DS_TAG(_autoPosition) << DS_TAG(_staffType) << DS_TAG(_entertainerType) << DS_TAG(_staffOrders);
+    stream << DS_TAG(_autoPosition) << DS_TAG(_staffType) << DS_TAG(_costumeIndex) << DS_TAG(_staffOrders);
 }
 
 GameActions::Result StaffHireNewAction::Query() const
@@ -97,17 +90,10 @@ GameActions::Result StaffHireNewAction::QueryExecute(bool execute) const
 
     if (_staffType == static_cast<uint8_t>(StaffType::Entertainer))
     {
-        if (static_cast<uint8_t>(_entertainerType) >= static_cast<uint8_t>(EntertainerCostume::Count))
+        auto costumes = findAllPeepAnimationsIndexesForType(AnimationPeepType::Entertainer);
+        if (std::find(costumes.begin(), costumes.end(), _costumeIndex) == costumes.end())
         {
-            LOG_ERROR("Invalid entertainer type %u", static_cast<uint32_t>(_entertainerType));
-            return GameActions::Result(
-                GameActions::Status::InvalidParameters, STR_CANT_HIRE_NEW_STAFF, STR_ERR_VALUE_OUT_OF_RANGE);
-        }
-
-        uint32_t availableCostumes = StaffGetAvailableEntertainerCostumes();
-        if (!(availableCostumes & (1 << static_cast<uint8_t>(_entertainerType))))
-        {
-            LOG_ERROR("Unavailable entertainer costume %u", static_cast<uint32_t>(_entertainerType));
+            LOG_ERROR("Unavailable entertainer costume %u", static_cast<uint32_t>(_costumeIndex));
             return GameActions::Result(
                 GameActions::Status::InvalidParameters, STR_CANT_HIRE_NEW_STAFF, STR_ERR_VALUE_OUT_OF_RANGE);
         }
@@ -132,9 +118,9 @@ GameActions::Result StaffHireNewAction::QueryExecute(bool execute) const
         newPeep->WindowInvalidateFlags = 0;
         newPeep->Action = PeepActionType::Walking;
         newPeep->SpecialSprite = 0;
-        newPeep->ActionSpriteImageOffset = 0;
-        newPeep->WalkingFrameNum = 0;
-        newPeep->ActionSpriteType = PeepActionSpriteType::None;
+        newPeep->AnimationImageIdOffset = 0;
+        newPeep->WalkingAnimationFrameNum = 0;
+        newPeep->AnimationType = PeepAnimationType::Walking;
         newPeep->PathCheckOptimisation = 0;
         newPeep->PeepFlags = 0;
         newPeep->StaffLawnsMown = 0;
@@ -163,18 +149,26 @@ GameActions::Result StaffHireNewAction::QueryExecute(bool execute) const
         newPeep->PeepId = newStaffId;
         newPeep->AssignedStaffType = static_cast<StaffType>(_staffType);
 
-        PeepSpriteType spriteType = spriteTypes[_staffType];
-        if (_staffType == static_cast<uint8_t>(StaffType::Entertainer))
-        {
-            spriteType = EntertainerCostumeToSprite(_entertainerType);
-        }
-        newPeep->Name = nullptr;
-        newPeep->SpriteType = spriteType;
+        auto animPeepType = AnimationPeepType(static_cast<uint8_t>(_staffType) + 1);
+        ObjectEntryIndex animObjectIndex = _costumeIndex;
+        if (animPeepType != AnimationPeepType::Entertainer)
+            animObjectIndex = findPeepAnimationsIndexForType(animPeepType);
 
-        const SpriteBounds* spriteBounds = &GetSpriteBounds(spriteType);
-        newPeep->SpriteData.Width = spriteBounds->sprite_width;
-        newPeep->SpriteData.HeightMin = spriteBounds->sprite_height_negative;
-        newPeep->SpriteData.HeightMax = spriteBounds->sprite_height_positive;
+        newPeep->Name = nullptr;
+        newPeep->AnimationObjectIndex = animObjectIndex;
+        newPeep->AnimationGroup = PeepAnimationGroup::Normal;
+
+        auto& objManager = GetContext()->GetObjectManager();
+        auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(animObjectIndex);
+
+        newPeep->PeepFlags &= ~PEEP_FLAGS_SLOW_WALK;
+        if (animObj->IsSlowWalking(PeepAnimationGroup::Normal))
+            newPeep->PeepFlags |= PEEP_FLAGS_SLOW_WALK;
+
+        const auto& spriteBounds = animObj->GetSpriteBounds(newPeep->AnimationGroup);
+        newPeep->SpriteData.Width = spriteBounds.sprite_width;
+        newPeep->SpriteData.HeightMin = spriteBounds.sprite_height_negative;
+        newPeep->SpriteData.HeightMax = spriteBounds.sprite_height_positive;
 
         if (_autoPosition)
         {
@@ -201,7 +195,7 @@ GameActions::Result StaffHireNewAction::QueryExecute(bool execute) const
         newPeep->TrousersColour = colour;
 
         // Staff energy determines their walking speed
-        switch (GetGameState().Cheats.SelectedStaffSpeed)
+        switch (GetGameState().Cheats.selectedStaffSpeed)
         {
             case StaffSpeedCheat::None:
                 newPeep->Energy = kCheatsStaffNormalSpeed;

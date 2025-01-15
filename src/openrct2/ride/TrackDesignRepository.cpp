@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -21,7 +21,6 @@
 #include "../localisation/LocalisationService.h"
 #include "../object/ObjectRepository.h"
 #include "../ride/RideData.h"
-#include "../util/Util.h"
 #include "TrackDesign.h"
 
 #include <memory>
@@ -61,26 +60,26 @@ private:
 public:
     explicit TrackDesignFileIndex(const IPlatformEnvironment& env)
         : FileIndex(
-            "track design index", MAGIC_NUMBER, VERSION, env.GetFilePath(PATHID::CACHE_TRACKS), std::string(PATTERN),
-            std::vector<std::string>({
-                env.GetDirectoryPath(DIRBASE::RCT1, DIRID::TRACK),
-                env.GetDirectoryPath(DIRBASE::RCT2, DIRID::TRACK),
-                env.GetDirectoryPath(DIRBASE::USER, DIRID::TRACK),
-            }))
+              "track design index", MAGIC_NUMBER, VERSION, env.GetFilePath(PATHID::CACHE_TRACKS), std::string(PATTERN),
+              std::vector<std::string>({
+                  env.GetDirectoryPath(DIRBASE::RCT1, DIRID::TRACK),
+                  env.GetDirectoryPath(DIRBASE::RCT2, DIRID::TRACK),
+                  env.GetDirectoryPath(DIRBASE::USER, DIRID::TRACK),
+              }))
     {
     }
 
 public:
     std::optional<TrackRepositoryItem> Create(int32_t, const std::string& path) const override
     {
-        auto td6 = TrackDesignImport(path.c_str());
-        if (td6 != nullptr)
+        auto td = TrackDesignImport(path.c_str());
+        if (td != nullptr)
         {
             TrackRepositoryItem item;
             item.Name = GetNameFromTrackPath(path);
             item.Path = path;
-            item.RideType = td6->type;
-            item.ObjectEntry = std::string(td6->vehicleObject.Entry.name, 8);
+            item.RideType = td->trackAndVehicle.rtdIndex;
+            item.ObjectEntry = std::string(td->trackAndVehicle.vehicleObject.Entry.name, 8);
             item.Flags = 0;
             if (IsTrackReadOnly(path))
             {
@@ -105,7 +104,7 @@ protected:
 private:
     bool IsTrackReadOnly(const std::string& path) const
     {
-        return String::StartsWith(path, SearchPaths[0]) || String::StartsWith(path, SearchPaths[1]);
+        return String::startsWith(path, SearchPaths[0]) || String::startsWith(path, SearchPaths[1]);
     }
 };
 
@@ -151,11 +150,11 @@ public:
             {
                 const ObjectRepositoryItem* ori = repo.FindObjectLegacy(item.ObjectEntry.c_str());
 
-                if (ori == nullptr || !GetRideTypeDescriptor(rideType).HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY))
+                if (ori == nullptr || !GetRideTypeDescriptor(rideType).HasFlag(RtdFlag::listVehiclesSeparately))
                     entryIsNotSeparate = true;
             }
 
-            if (entryIsNotSeparate || String::IEquals(item.ObjectEntry, entry))
+            if (entryIsNotSeparate || String::iequals(item.ObjectEntry, entry))
             {
                 count++;
             }
@@ -185,11 +184,11 @@ public:
             {
                 const ObjectRepositoryItem* ori = repo.FindObjectLegacy(item.ObjectEntry.c_str());
 
-                if (ori == nullptr || !GetRideTypeDescriptor(rideType).HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY))
+                if (ori == nullptr || !GetRideTypeDescriptor(rideType).HasFlag(RtdFlag::listVehiclesSeparately))
                     entryIsNotSeparate = true;
             }
 
-            if (entryIsNotSeparate || String::IEquals(item.ObjectEntry, entry))
+            if (entryIsNotSeparate || String::iequals(item.ObjectEntry, entry))
             {
                 TrackDesignFileRef ref;
                 ref.name = GetNameFromTrackPath(item.Path);
@@ -282,7 +281,7 @@ private:
             {
                 return a.RideType < b.RideType;
             }
-            return StrLogicalCmp(a.Name.c_str(), b.Name.c_str()) < 0;
+            return String::logicalCmp(a.Name.c_str(), b.Name.c_str()) < 0;
         });
     }
 

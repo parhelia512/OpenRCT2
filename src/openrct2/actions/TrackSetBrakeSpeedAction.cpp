@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,9 +9,13 @@
 
 #include "TrackSetBrakeSpeedAction.h"
 
+#include "../Diagnostic.h"
 #include "../management/Finance.h"
+#include "../world/tile_element/TrackElement.h"
 
-TrackSetBrakeSpeedAction::TrackSetBrakeSpeedAction(const CoordsXYZ& loc, track_type_t trackType, uint8_t brakeSpeed)
+using namespace OpenRCT2;
+
+TrackSetBrakeSpeedAction::TrackSetBrakeSpeedAction(const CoordsXYZ& loc, OpenRCT2::TrackElemType trackType, uint8_t brakeSpeed)
     : _loc(loc)
     , _trackType(trackType)
     , _brakeSpeed(brakeSpeed)

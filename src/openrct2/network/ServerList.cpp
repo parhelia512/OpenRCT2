@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,25 +9,27 @@
 
 #ifndef DISABLE_NETWORK
 
-#    include "ServerList.h"
+    #include "ServerList.h"
 
-#    include "../Context.h"
-#    include "../PlatformEnvironment.h"
-#    include "../config/Config.h"
-#    include "../core/File.h"
-#    include "../core/FileStream.h"
-#    include "../core/Guard.hpp"
-#    include "../core/Http.h"
-#    include "../core/Json.hpp"
-#    include "../core/Memory.hpp"
-#    include "../core/Path.hpp"
-#    include "../core/String.hpp"
-#    include "../platform/Platform.h"
-#    include "Socket.h"
-#    include "network.h"
+    #include "../Context.h"
+    #include "../Diagnostic.h"
+    #include "../PlatformEnvironment.h"
+    #include "../config/Config.h"
+    #include "../core/File.h"
+    #include "../core/FileStream.h"
+    #include "../core/Guard.hpp"
+    #include "../core/Http.h"
+    #include "../core/Json.hpp"
+    #include "../core/Memory.hpp"
+    #include "../core/Path.hpp"
+    #include "../core/String.hpp"
+    #include "../localisation/Language.h"
+    #include "../platform/Platform.h"
+    #include "Socket.h"
+    #include "network.h"
 
-#    include <numeric>
-#    include <optional>
+    #include <numeric>
+    #include <optional>
 
 using namespace OpenRCT2;
 
@@ -63,7 +65,7 @@ int32_t ServerListEntry::CompareTo(const ServerListEntry& other) const
         return a.Players > b.Players ? -1 : 1;
     }
 
-    return String::Compare(a.Name, b.Name, true);
+    return String::compare(a.Name, b.Name, true);
 }
 
 bool ServerListEntry::IsVersionValid() const noexcept
@@ -117,7 +119,7 @@ void ServerList::Sort()
             [](const ServerListEntry& a, const ServerListEntry& b) {
                 if (a.Favourite == b.Favourite)
                 {
-                    return String::IEquals(a.Address, b.Address);
+                    return String::iequals(a.Address, b.Address);
                 }
                 return false;
             }),
@@ -352,14 +354,14 @@ std::future<std::vector<ServerListEntry>> ServerList::FetchLocalServerListAsync(
 
 std::future<std::vector<ServerListEntry>> ServerList::FetchOnlineServerListAsync() const
 {
-#    ifdef DISABLE_HTTP
+    #ifdef DISABLE_HTTP
     return {};
-#    else
+    #else
 
     auto p = std::make_shared<std::promise<std::vector<ServerListEntry>>>();
     auto f = p->get_future();
 
-    std::string masterServerUrl = OPENRCT2_MASTER_SERVER_URL;
+    std::string masterServerUrl = kMasterServerURL;
     if (!Config::Get().network.MasterServerUrl.empty())
     {
         masterServerUrl = Config::Get().network.MasterServerUrl;
@@ -421,7 +423,7 @@ std::future<std::vector<ServerListEntry>> ServerList::FetchOnlineServerListAsync
         }
     });
     return f;
-#    endif
+    #endif
 }
 
 uint32_t ServerList::GetTotalPlayerCount() const
@@ -429,6 +431,12 @@ uint32_t ServerList::GetTotalPlayerCount() const
     return std::accumulate(_serverEntries.begin(), _serverEntries.end(), 0, [](uint32_t acc, const ServerListEntry& entry) {
         return acc + entry.Players;
     });
+}
+
+const char* MasterServerException::what() const noexcept
+{
+    static std::string localisedStatusText = LanguageGetString(StatusText);
+    return localisedStatusText.c_str();
 }
 
 #endif

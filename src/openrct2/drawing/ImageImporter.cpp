@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -37,7 +37,7 @@ namespace OpenRCT2::Drawing
         {
             throw std::invalid_argument("Image is not paletted, it has bit depth of " + std::to_string(image.Depth));
         }
-        const bool isRLE = meta.importFlags & ImportFlags::RLE;
+        const bool isRLE = HasFlag(meta.importFlags, ImportFlags::RLE);
 
         auto pixels = GetPixels(image, meta);
         auto buffer = isRLE ? EncodeRLE(pixels.data(), meta.srcSize) : EncodeRaw(pixels.data(), meta.srcSize);
@@ -49,6 +49,8 @@ namespace OpenRCT2::Drawing
         outElement.x_offset = meta.offset.x;
         outElement.y_offset = meta.offset.y;
         outElement.zoomed_offset = meta.zoomedOffset;
+        if (HasFlag(meta.importFlags, ImportFlags::NoDrawOnZoom))
+            outElement.flags |= G1_FLAG_NO_ZOOM_DRAW;
 
         ImageImporter::ImportResult result;
         result.Element = outElement;
@@ -304,7 +306,7 @@ namespace OpenRCT2::Drawing
     {
         if (!IsTransparentPixel(colour))
         {
-            for (uint32_t i = 0; i < PALETTE_SIZE; i++)
+            for (uint32_t i = 0; i < kGamePaletteSize; i++)
             {
                 if (static_cast<int16_t>(palette[i].Red) == colour[0] && static_cast<int16_t>(palette[i].Green) == colour[1]
                     && static_cast<int16_t>(palette[i].Blue) == colour[2])
@@ -362,7 +364,7 @@ namespace OpenRCT2::Drawing
     {
         auto smallestError = static_cast<uint32_t>(-1);
         auto bestMatch = PALETTE_TRANSPARENT;
-        for (uint32_t x = 0; x < PALETTE_SIZE; x++)
+        for (uint32_t x = 0; x < kGamePaletteSize; x++)
         {
             if (IsChangablePixel(x))
             {
@@ -388,9 +390,14 @@ namespace OpenRCT2::Drawing
         auto yOffset = Json::GetNumber<int16_t>(input["y"]);
         auto keepPalette = Json::GetString(input["palette"]) == "keep";
         auto palette = keepPalette ? Palette::KeepIndices : Palette::OpenRCT2;
+        uint8_t flags = 0;
 
         auto raw = Json::GetString(input["format"]) == "raw";
-        auto flags = raw ? ImportFlags::None : ImportFlags::RLE;
+        if (!raw)
+            flags |= EnumToFlag(ImportFlags::RLE);
+
+        if (Json::GetBoolean("noDrawOnZoom"))
+            flags |= EnumToFlag(ImportFlags::NoDrawOnZoom);
 
         auto srcX = Json::GetNumber<int16_t>(input["srcX"]);
         auto srcY = Json::GetNumber<int16_t>(input["srcY"]);

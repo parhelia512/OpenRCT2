@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,10 +9,12 @@
 
 #include "RideEntranceExitRemoveAction.h"
 
+#include "../Diagnostic.h"
 #include "../ride/Ride.h"
 #include "../ride/Station.h"
 #include "../world/Entrance.h"
 #include "../world/TileElementsView.h"
+#include "../world/tile_element/EntranceElement.h"
 
 using namespace OpenRCT2;
 

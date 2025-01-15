@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -7,26 +7,26 @@
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
 
-#include "../interface/Theme.h"
-
+#include <openrct2-ui/UiContext.h>
+#include <openrct2-ui/input/InputManager.h>
+#include <openrct2-ui/interface/Theme.h>
 #include <openrct2-ui/interface/Widget.h>
 #include <openrct2-ui/windows/Window.h>
 #include <openrct2/Context.h>
 #include <openrct2/Input.h>
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 
 namespace OpenRCT2::Ui::Windows
 {
     // clang-format off
-static Widget window_map_tooltip_widgets[] = {
-    MakeWidget({0, 0}, {200, 30}, WindowWidgetType::ImgBtn, WindowColour::Primary),
-    kWidgetsEnd,
-};
-
-// clang-format on
-#define MAP_TOOLTIP_ARGS
+    static Widget window_map_tooltip_widgets[] = {
+        MakeWidget({0, 0}, {200, 30}, WindowWidgetType::ImgBtn, WindowColour::Primary),
+        kWidgetsEnd,
+    };
+    // clang-format on
 
     static ScreenCoordsXY _lastCursor;
     static int32_t _cursorHoldDuration;
@@ -97,10 +97,10 @@ static Widget window_map_tooltip_widgets[] = {
         StringId stringId;
         std::memcpy(&stringId, _mapTooltipArgs.Data(), sizeof(StringId));
 
-        if (_cursorHoldDuration < 25 || stringId == STR_NONE
-            || InputTestPlaceObjectModifier(
-                static_cast<PLACE_OBJECT_MODIFIER>(PLACE_OBJECT_MODIFIER_COPY_Z | PLACE_OBJECT_MODIFIER_SHIFT_Z))
-            || WindowFindByClass(WindowClass::Error) != nullptr)
+        auto& im = GetInputManager();
+        auto* wm = GetContext()->GetUiContext()->GetWindowManager();
+        if (_cursorHoldDuration < 25 || stringId == STR_NONE || im.IsModifierKeyPressed(ModifierKey::ctrl)
+            || im.IsModifierKeyPressed(ModifierKey::shift) || wm->FindByClass(WindowClass::Error) != nullptr)
         {
             WindowCloseByClass(WindowClass::MapTooltip);
         }
@@ -117,7 +117,8 @@ static Widget window_map_tooltip_widgets[] = {
         const CursorState* state = ContextGetCursorState();
         auto pos = state->position + ScreenCoordsXY{ -width / 2, 15 };
 
-        if (auto w = WindowFindByClass(WindowClass::MapTooltip))
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        if (auto w = windowMgr->FindByClass(WindowClass::MapTooltip))
         {
             w->Invalidate();
             w->windowPos = pos;

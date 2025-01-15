@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -97,12 +97,9 @@ void EntityTweener::Tween(float alpha)
         if (posA == posB)
             continue;
 
-        EntitySetCoordinates(
-            { static_cast<int32_t>(std::round(posB.x * alpha + posA.x * inv)),
-              static_cast<int32_t>(std::round(posB.y * alpha + posA.y * inv)),
-              static_cast<int32_t>(std::round(posB.z * alpha + posA.z * inv)) },
-            ent);
-        ent->Invalidate();
+        ent->MoveTo({ static_cast<int32_t>(std::round(posB.x * alpha + posA.x * inv)),
+                      static_cast<int32_t>(std::round(posB.y * alpha + posA.y * inv)),
+                      static_cast<int32_t>(std::round(posB.z * alpha + posA.z * inv)) });
     }
 }
 
@@ -114,8 +111,7 @@ void EntityTweener::Restore()
         if (ent == nullptr)
             continue;
 
-        EntitySetCoordinates(PostPos[i], ent);
-        ent->Invalidate();
+        ent->MoveTo(PostPos[i]);
     }
 }
 

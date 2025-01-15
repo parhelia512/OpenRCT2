@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -27,8 +27,10 @@
 #include <cstdlib>
 #include <memory>
 #include <openrct2-ui/input/InputManager.h>
+#include <openrct2-ui/input/MouseInput.h>
 #include <openrct2-ui/interface/Window.h>
 #include <openrct2/Context.h>
+#include <openrct2/Diagnostic.h>
 #include <openrct2/Input.h>
 #include <openrct2/Version.h>
 #include <openrct2/audio/AudioContext.h>
@@ -38,7 +40,6 @@
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/drawing/IDrawingEngine.h>
 #include <openrct2/interface/Chat.h>
-#include <openrct2/interface/InteractiveConsole.h>
 #include <openrct2/platform/Platform.h>
 #include <openrct2/scenes/title/TitleSequencePlayer.h>
 #include <openrct2/scripting/ScriptEngine.h>
@@ -47,19 +48,16 @@
 #include <openrct2/world/Location.hpp>
 #include <vector>
 
-// TODO: only because of STR_NONE. We can do better.
-#include <openrct2/localisation/StringIds.h>
-
 using namespace OpenRCT2;
 using namespace OpenRCT2::Drawing;
 using namespace OpenRCT2::Scripting;
 using namespace OpenRCT2::Ui;
 
 #ifdef __MACOSX__
-// macOS uses COMMAND rather than CTRL for many keyboard shortcuts
-#    define KEYBOARD_PRIMARY_MODIFIER KMOD_GUI
+    // macOS uses COMMAND rather than CTRL for many keyboard shortcuts
+    #define KEYBOARD_PRIMARY_MODIFIER KMOD_GUI
 #else
-#    define KEYBOARD_PRIMARY_MODIFIER KMOD_CTRL
+    #define KEYBOARD_PRIMARY_MODIFIER KMOD_CTRL
 #endif
 
 class UiContext final : public IUiContext
@@ -131,7 +129,7 @@ public:
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 
-    void Initialise() override
+    void InitialiseScriptExtensions() override
     {
 #ifdef ENABLE_SCRIPTING
         auto& scriptEngine = GetContext()->GetScriptEngine();
@@ -556,7 +554,7 @@ public:
                         if (abs(gesturePixels) > tolerance)
                         {
                             _gestureRadius = 0;
-                            MainWindowZoom(gesturePixels > 0, true);
+                            Windows::MainWindowZoom(gesturePixels > 0, true);
                         }
                     }
                     break;
@@ -734,6 +732,24 @@ private:
         LOG_VERBOSE("SDL2 version: %d.%d.%d", version.major, version.minor, version.patch);
     }
 
+    void InferDisplayDPI()
+    {
+        auto& config = Config::Get().general;
+        if (!config.InferDisplayDPI)
+            return;
+
+        int wWidth, wHeight;
+        SDL_GetWindowSize(_window, &wWidth, &wHeight);
+
+        auto renderer = SDL_GetRenderer(_window);
+        int rWidth, rHeight;
+        if (SDL_GetRendererOutputSize(renderer, &rWidth, &rHeight) == 0)
+            config.WindowScale = rWidth / wWidth;
+
+        config.InferDisplayDPI = false;
+        Config::Save();
+    }
+
     void CreateWindow(const ScreenCoordsXY& windowPos)
     {
         // Get saved window size
@@ -765,6 +781,7 @@ private:
 
         // Initialise the surface, palette and draw buffer
         DrawingEngineInit();
+        InferDisplayDPI();
         OnResize(width, height);
 
         UpdateFullscreenResolutions();
@@ -785,7 +802,7 @@ private:
         if ((flags & SDL_WINDOW_MINIMIZED) == 0)
         {
             WindowResizeGui(_width, _height);
-            WindowRelocateWindows(_width, _height);
+            Windows::WindowRelocateWindows(_width, _height);
         }
 
         GfxInvalidateScreen();

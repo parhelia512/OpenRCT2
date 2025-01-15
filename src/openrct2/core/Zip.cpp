@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,7 +12,7 @@
 #include "IStream.hpp"
 
 #ifndef __ANDROID__
-#    include <zip.h>
+    #include <zip.h>
 #endif
 
 using namespace OpenRCT2;
@@ -376,7 +376,7 @@ private:
     };
 };
 
-namespace Zip
+namespace OpenRCT2::Zip
 {
     std::unique_ptr<IZipArchive> Open(std::string_view path, ZIP_ACCESS access)
     {
@@ -395,6 +395,6 @@ namespace Zip
         }
         return result;
     }
-} // namespace Zip
+} // namespace OpenRCT2::Zip
 
 #endif

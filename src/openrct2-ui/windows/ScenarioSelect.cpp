@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -15,18 +15,17 @@
 #include <openrct2/Context.h>
 #include <openrct2/audio/audio.h>
 #include <openrct2/config/Config.h>
+#include <openrct2/core/String.hpp>
 #include <openrct2/drawing/Drawing.h>
-#include <openrct2/localisation/Date.h>
 #include <openrct2/localisation/Formatter.h>
 #include <openrct2/localisation/Formatting.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/localisation/Localisation.Date.h>
 #include <openrct2/localisation/LocalisationService.h>
 #include <openrct2/ride/RideData.h>
 #include <openrct2/scenario/Scenario.h>
 #include <openrct2/scenario/ScenarioRepository.h>
 #include <openrct2/scenario/ScenarioSources.h>
 #include <openrct2/sprites.h>
-#include <openrct2/util/Util.h>
 #include <vector>
 
 namespace OpenRCT2::Ui::Windows
@@ -93,22 +92,22 @@ namespace OpenRCT2::Ui::Windows
     };
 
     // clang-format off
-static Widget _scenarioSelectWidgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget({ TabWidth + 1, WidgetsStart }, { WW, 284 }, WindowWidgetType::Resize, WindowColour::Secondary), // tab content panel
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 0) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 01
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 1) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 02
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 2) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 03
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 3) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 04
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 4) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 05
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 5) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 06
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 6) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 07
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 7) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 08
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 8) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 09
-    MakeRemapWidget({ 3, TabsStart + (TabHeight * 8) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 10
-    MakeWidget({ TabWidth + 3, WidgetsStart + 1 }, { WW - SidebarWidth, 362 }, WindowWidgetType::Scroll, WindowColour::Secondary, SCROLL_VERTICAL), // level list
-    kWidgetsEnd,
-};
+    static Widget _scenarioSelectWidgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeWidget({ TabWidth + 1, WidgetsStart }, { WW, 284 }, WindowWidgetType::Resize, WindowColour::Secondary), // tab content panel
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 0) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 01
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 1) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 02
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 2) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 03
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 3) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 04
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 4) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 05
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 5) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 06
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 6) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 07
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 7) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 08
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 8) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 09
+        MakeRemapWidget({ 3, TabsStart + (TabHeight * 8) }, { TabWidth, TabHeight}, WindowWidgetType::Tab, WindowColour::Secondary, SPR_G2_SIDEWAYS_TAB), // tab 10
+        MakeWidget({ TabWidth + 3, WidgetsStart + 1 }, { WW - SidebarWidth, 362 }, WindowWidgetType::Scroll, WindowColour::Secondary, SCROLL_VERTICAL), // level list
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class ScenarioSelectWindow final : public Window
@@ -127,10 +126,11 @@ static Widget _scenarioSelectWidgets[] = {
 
         void OnOpen() override
         {
+            widgets = _scenarioSelectWidgets;
+
             // Load scenario list
             ScenarioRepositoryScan();
 
-            widgets = _scenarioSelectWidgets;
             _highlightedScenario = nullptr;
             InitTabs();
             InitialiseListItems();
@@ -256,7 +256,7 @@ static Widget _scenarioSelectWidgets[] = {
                                     .Currency = scenario->ObjectiveArg2 };
 
             ft = Formatter();
-            ft.Add<StringId>(ObjectiveNames[scenario->ObjectiveType]);
+            ft.Add<StringId>(kObjectiveNames[scenario->ObjectiveType]);
             formatObjective(ft, objective);
             screenPos.y += DrawTextWrapped(dpi, screenPos, 170, STR_OBJECTIVE, ft) + 5;
 
@@ -445,7 +445,7 @@ static Widget _scenarioSelectWidgets[] = {
 
                         // Draw scenario name
                         char buffer[64];
-                        SafeStrCpy(buffer, scenario->Name, sizeof(buffer));
+                        String::safeUtf8Copy(buffer, scenario->Name, sizeof(buffer));
                         StringId format = isDisabled ? static_cast<StringId>(STR_STRINGID)
                                                      : (isHighlighted ? highlighted_format : unhighlighted_format);
                         auto ft = Formatter();
@@ -500,7 +500,7 @@ static Widget _scenarioSelectWidgets[] = {
             DrawTextBasic(dpi, { centreX, y }, stringId, {}, { baseColour, TextAlignment::CENTRE });
 
             // Get string dimensions
-            utf8 buffer[CommonTextBufferSize];
+            utf8 buffer[512];
             auto bufferPtr = buffer;
             OpenRCT2::FormatStringLegacy(bufferPtr, sizeof(buffer), stringId, nullptr);
             int32_t categoryStringHalfWidth = (GfxGetStringWidth(bufferPtr, FontStyle::Medium) / 2) + 4;
@@ -691,7 +691,7 @@ static Widget _scenarioSelectWidgets[] = {
 
         void InitTabs()
         {
-            int32_t showPages = 0;
+            uint32_t showPages = 0;
             size_t numScenarios = ScenarioRepositoryGetCount();
             for (size_t i = 0; i < numScenarios; i++)
             {
@@ -717,7 +717,7 @@ static Widget _scenarioSelectWidgets[] = {
             }
             else
             {
-                int32_t firstPage = UtilBitScanForward(showPages);
+                int32_t firstPage = Numerics::bitScanForward(showPages);
                 if (firstPage != -1)
                 {
                     selected_tab = firstPage;
@@ -761,7 +761,7 @@ static Widget _scenarioSelectWidgets[] = {
         }
     };
 
-    WindowBase* ScenarioselectOpen(scenarioselect_callback callback)
+    WindowBase* ScenarioselectOpen(ScenarioSelectCallback callback)
     {
         return ScenarioselectOpen([callback](std::string_view scenario) { callback(std::string(scenario).c_str()); });
     }

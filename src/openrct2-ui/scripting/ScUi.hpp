@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,21 +11,20 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "../windows/Window.h"
-#    include "CustomMenu.h"
-#    include "ScImageManager.hpp"
-#    include "ScTileSelection.hpp"
-#    include "ScViewport.hpp"
-#    include "ScWindow.hpp"
+    #include "../windows/Window.h"
+    #include "CustomMenu.h"
+    #include "ScImageManager.hpp"
+    #include "ScTileSelection.hpp"
+    #include "ScViewport.hpp"
+    #include "ScWindow.hpp"
 
-#    include <memory>
-#    include <openrct2/Context.h>
-#    include <openrct2/Input.h>
-#    include <openrct2/common.h>
-#    include <openrct2/scenario/ScenarioRepository.h>
-#    include <openrct2/scripting/Duktape.hpp>
-#    include <openrct2/scripting/ScriptEngine.h>
-#    include <string>
+    #include <memory>
+    #include <openrct2/Context.h>
+    #include <openrct2/Input.h>
+    #include <openrct2/scenario/ScenarioRepository.h>
+    #include <openrct2/scripting/Duktape.hpp>
+    #include <openrct2/scripting/ScriptEngine.h>
+    #include <string>
 
 namespace OpenRCT2::Scripting
 {
@@ -62,7 +61,8 @@ namespace OpenRCT2::Scripting
         { "other", ScenarioSource::Other },
     });
 
-    template<> inline DukValue ToDuk(duk_context* ctx, const SCENARIO_CATEGORY& value)
+    template<>
+    inline DukValue ToDuk(duk_context* ctx, const SCENARIO_CATEGORY& value)
     {
         const auto& entry = ScenarioCategoryMap.find(value);
         if (entry != ScenarioCategoryMap.end())
@@ -70,7 +70,8 @@ namespace OpenRCT2::Scripting
         return ToDuk(ctx, ScenarioCategoryMap[SCENARIO_CATEGORY_OTHER]);
     }
 
-    template<> inline DukValue ToDuk(duk_context* ctx, const ScenarioSource& value)
+    template<>
+    inline DukValue ToDuk(duk_context* ctx, const ScenarioSource& value)
     {
         const auto& entry = ScenarioSourceMap.find(value);
         if (entry != ScenarioSourceMap.end())

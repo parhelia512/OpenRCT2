@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,13 +9,13 @@
 
 #include "ScenarioSetSettingAction.h"
 
+#include "../Diagnostic.h"
 #include "../GameState.h"
 #include "../OpenRCT2.h"
 #include "../entity/Peep.h"
 #include "../interface/Window.h"
 #include "../management/Finance.h"
 #include "../scenario/Scenario.h"
-#include "../util/Util.h"
 #include "../world/Park.h"
 
 using namespace OpenRCT2;

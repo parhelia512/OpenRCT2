@@ -1,11 +1,13 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
  *
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
+
+#include "../interface/ViewportQuery.h"
 
 #include <array>
 #include <openrct2-ui/interface/Dropdown.h>
@@ -20,19 +22,24 @@
 #include <openrct2/actions/GuestSetNameAction.h>
 #include <openrct2/actions/PeepPickupAction.h>
 #include <openrct2/config/Config.h>
+#include <openrct2/core/EnumUtils.hpp>
+#include <openrct2/core/String.hpp>
 #include <openrct2/entity/Guest.h>
 #include <openrct2/entity/Staff.h>
 #include <openrct2/localisation/Formatter.h>
 #include <openrct2/localisation/Formatting.h>
-#include <openrct2/localisation/Localisation.h>
 #include <openrct2/management/Marketing.h>
 #include <openrct2/network/network.h>
-#include <openrct2/peep/PeepAnimationData.h>
+#include <openrct2/object/ObjectManager.h>
+#include <openrct2/object/PeepAnimationsObject.h>
 #include <openrct2/peep/PeepSpriteIds.h>
 #include <openrct2/ride/RideData.h>
+#include <openrct2/ride/RideManager.hpp>
 #include <openrct2/ride/ShopItem.h>
 #include <openrct2/scenario/Scenario.h>
 #include <openrct2/sprites.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <openrct2/util/Util.h>
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/Footpath.h>
@@ -106,17 +113,17 @@ namespace OpenRCT2::Ui::Windows
         MakeTab({ 189, 17 }, STR_DEBUG_TIP)                                                     /* Tab 7 */
 
     // clang-format off
-static Widget _guestWindowWidgetsOverview[] = {
-    MAIN_GUEST_WIDGETS,
-    MakeWidget({  3,  45}, {164, 12}, WindowWidgetType::LabelCentred, WindowColour::Secondary                                               ), // Label Thought marquee
-    MakeWidget({  3,  57}, {164, 87}, WindowWidgetType::Viewport,      WindowColour::Secondary                                               ), // Viewport
-    MakeWidget({  3, 144}, {164, 11}, WindowWidgetType::LabelCentred, WindowColour::Secondary                                               ), // Label Action
-    MakeWidget({167,  45}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_PICKUP_BTN), STR_PICKUP_TIP               ), // Pickup Button
-    MakeWidget({167,  69}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_RENAME),     STR_NAME_GUEST_TIP           ), // Rename Button
-    MakeWidget({167,  93}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_LOCATE),     STR_LOCATE_SUBJECT_TIP       ), // Locate Button
-    MakeWidget({167, 117}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_TRACK_PEEP), STR_TOGGLE_GUEST_TRACKING_TIP), // Track Button
-    kWidgetsEnd,
-};
+    static Widget _guestWindowWidgetsOverview[] = {
+        MAIN_GUEST_WIDGETS,
+        MakeWidget({  3,  45}, {164, 12}, WindowWidgetType::LabelCentred, WindowColour::Secondary                                               ), // Label Thought marquee
+        MakeWidget({  3,  57}, {164, 87}, WindowWidgetType::Viewport,      WindowColour::Secondary                                               ), // Viewport
+        MakeWidget({  3, 144}, {164, 11}, WindowWidgetType::LabelCentred, WindowColour::Secondary                                               ), // Label Action
+        MakeWidget({167,  45}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_PICKUP_BTN), STR_PICKUP_TIP               ), // Pickup Button
+        MakeWidget({167,  69}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_RENAME),     STR_NAME_GUEST_TIP           ), // Rename Button
+        MakeWidget({167,  93}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_LOCATE),     STR_LOCATE_SUBJECT_TIP       ), // Locate Button
+        MakeWidget({167, 117}, { 24, 24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_TRACK_PEEP), STR_TOGGLE_GUEST_TRACKING_TIP), // Track Button
+        kWidgetsEnd,
+    };
     // clang-format on
 
     static Widget _guestWindowWidgetsStats[] = {
@@ -157,16 +164,16 @@ static Widget _guestWindowWidgetsOverview[] = {
     };
 
     // clang-format off
-static constexpr std::array _guestWindowPageWidgets = {
-    _guestWindowWidgetsOverview,
-    _guestWindowWidgetsStats,
-    _guestWindowWidgetsRides,
-    _guestWindowWidgetsFinance,
-    _guestWindowWidgetsThoughts,
-    _guestWindowWidgetsInventory,
-    _guestWindowWidgetsDebug,
-};
-static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
+    static constexpr std::array _guestWindowPageWidgets = {
+        _guestWindowWidgetsOverview,
+        _guestWindowWidgetsStats,
+        _guestWindowWidgetsRides,
+        _guestWindowWidgetsFinance,
+        _guestWindowWidgetsThoughts,
+        _guestWindowWidgetsInventory,
+        _guestWindowWidgetsDebug,
+    };
+    static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
     // clang-format on
 
     static constexpr std::array _guestWindowPageSizes = {
@@ -186,7 +193,7 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
         uint16_t _marqueePosition = 0;
         uint16_t _beingWatchedTimer = 0;
         uint16_t _guestAnimationFrame = 0;
-        int16_t _pickedPeepX = LOCATION_NULL; // entity->x gets set to 0x8000 on pickup, this is the old value
+        int16_t _pickedPeepX = kLocationNull; // entity->x gets set to 0x8000 on pickup, this is the old value
         std::vector<RideId> _riddenRides;
 
     public:
@@ -213,11 +220,8 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
 
         void OnClose() override
         {
-            if (InputTestFlag(INPUT_FLAG_TOOL_ACTIVE))
-            {
-                if (classification == gCurrentToolWidget.window_classification && number == gCurrentToolWidget.window_number)
-                    ToolCancel();
-            }
+            if (isToolActive(classification, number))
+                ToolCancel();
         }
 
         void OnMouseUp(WidgetIndex widx) override
@@ -498,11 +502,9 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
 
         void SetPage(int32_t newPage)
         {
-            if (InputTestFlag(INPUT_FLAG_TOOL_ACTIVE))
-            {
-                if (number == gCurrentToolWidget.window_number && classification == gCurrentToolWidget.window_classification)
-                    ToolCancel();
-            }
+            if (isToolActive(classification, number))
+                ToolCancel();
+
             int32_t listen = 0;
             if (newPage == WINDOW_GUEST_OVERVIEW && page == WINDOW_GUEST_OVERVIEW && viewport != nullptr)
             {
@@ -559,8 +561,10 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                 return;
             }
 
-            int32_t animationFrame = GetPeepAnimation(peep->SpriteType).base_image + 1;
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
 
+            int32_t animationFrame = animObj->GetPeepAnimation(peep->AnimationGroup).base_image + 1;
             int32_t animationFrameOffset = 0;
 
             if (page == WINDOW_GUEST_OVERVIEW)
@@ -574,27 +578,31 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             GfxDrawSprite(clipDpi, spriteId, screenCoords);
 
             auto* guest = peep->As<Guest>();
-            if (guest != nullptr)
+            if (guest == nullptr)
+                return;
+
+            // There are only 6 walking frames available for each item.
+            auto itemFrame = (_guestAnimationFrame / 4) % 6;
+
+            if (guest->AnimationGroup == PeepAnimationGroup::Hat)
             {
-                // If holding a balloon
-                if (animationFrame >= kPeepSpriteBalloonStateWatchRideId
-                    && animationFrame < kPeepSpriteBalloonStateSittingIdleId + 4)
-                {
-                    GfxDrawSprite(clipDpi, ImageId(animationFrame + 32, guest->BalloonColour), screenCoords);
-                }
+                auto itemOffset = kPeepSpriteHatItemStart + 1;
+                auto imageId = ImageId(itemOffset + itemFrame * 4, guest->HatColour);
+                GfxDrawSprite(clipDpi, imageId, screenCoords);
+            }
 
-                // If holding umbrella
-                if (animationFrame >= kPeepSpriteUmbrellaStateNoneId
-                    && animationFrame < kPeepSpriteUmbrellaStateSittingIdleId + 4)
-                {
-                    GfxDrawSprite(clipDpi, ImageId(animationFrame + 32, guest->UmbrellaColour), screenCoords);
-                }
+            if (guest->AnimationGroup == PeepAnimationGroup::Balloon)
+            {
+                auto itemOffset = kPeepSpriteBalloonItemStart + 1;
+                auto imageId = ImageId(itemOffset + itemFrame * 4, guest->BalloonColour);
+                GfxDrawSprite(clipDpi, imageId, screenCoords);
+            }
 
-                // If wearing hat
-                if (animationFrame >= kPeepSpriteHatStateWatchRideId && animationFrame < kPeepSpriteHatStateSittingIdleId + 4)
-                {
-                    GfxDrawSprite(clipDpi, ImageId(animationFrame + 32, guest->HatColour), screenCoords);
-                }
+            if (guest->AnimationGroup == PeepAnimationGroup::Umbrella)
+            {
+                auto itemOffset = kPeepSpriteUmbrellaItemStart + 1;
+                auto imageId = ImageId(itemOffset + itemFrame * 4, guest->UmbrellaColour);
+                GfxDrawSprite(clipDpi, imageId, screenCoords);
             }
         }
 
@@ -615,8 +623,6 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                 {
                     viewport->width = reqViewportWidth;
                     viewport->height = reqViewportHeight;
-                    viewport->view_width = viewport->zoom.ApplyInversedTo(viewport->width);
-                    viewport->view_height = viewport->zoom.ApplyInversedTo(viewport->height);
                 }
             }
             OnViewportRotate();
@@ -646,7 +652,8 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                     pickupAction.SetCallback([peepnum = number](const GameAction* ga, const GameActions::Result* result) {
                         if (result->Error != GameActions::Status::Ok)
                             return;
-                        WindowBase* wind = WindowFindByNumber(WindowClass::Peep, peepnum);
+                        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+                        WindowBase* wind = windowMgr->FindByNumber(WindowClass::Peep, peepnum);
                         if (wind != nullptr)
                         {
                             ToolSet(*wind, WC_PEEP__WIDX_PICKUP, Tool::Picker);
@@ -872,21 +879,30 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
 
         void OnUpdateOverview()
         {
-            _guestAnimationFrame++;
-            _guestAnimationFrame %= 24;
-
-            // Update pickup animation, can only happen in this tab.
-            picked_peep_frame++;
-            picked_peep_frame %= 48;
-
-            WidgetInvalidate(*this, WIDX_TAB_1);
-            WidgetInvalidate(*this, WIDX_TAB_2);
-
             const auto peep = GetGuest();
             if (peep == nullptr)
             {
                 return;
             }
+
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+            // Overview tab animation offset
+            _guestAnimationFrame++;
+            _guestAnimationFrame %= 24;
+
+            // Get pickup animation length
+            const auto& pickAnim = animObj->GetPeepAnimation(peep->AnimationGroup, PeepAnimationType::Hanging);
+            const auto pickAnimLength = pickAnim.frame_offsets.size();
+
+            // Update pickup animation, can only happen in this tab.
+            picked_peep_frame++;
+            picked_peep_frame %= pickAnimLength * 4;
+
+            WidgetInvalidate(*this, WIDX_TAB_1);
+            WidgetInvalidate(*this, WIDX_TAB_2);
+
             if (peep->WindowInvalidateFlags & PEEP_INVALIDATE_PEEP_ACTION)
             {
                 peep->WindowInvalidateFlags &= ~PEEP_INVALIDATE_PEEP_ACTION;
@@ -949,7 +965,7 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             gPickupPeepImage = ImageId();
 
             auto info = GetMapCoordinatesFromPos(screenCoords, ViewportInteractionItemAll);
-            if (info.SpriteType == ViewportInteractionItem::None)
+            if (info.interactionType == ViewportInteractionItem::None)
                 return;
 
             gPickupPeepX = screenCoords.x - 1;
@@ -961,7 +977,10 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                 return;
             }
 
-            auto baseImageId = GetPeepAnimation(peep->SpriteType, PeepActionSpriteType::Ui).base_image;
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+            auto baseImageId = animObj->GetPeepAnimation(peep->AnimationGroup, PeepAnimationType::Hanging).base_image;
             baseImageId += picked_peep_frame >> 2;
             gPickupPeepImage = ImageId(baseImageId, peep->TshirtColour, peep->TrousersColour);
         }
@@ -1063,6 +1082,34 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
 
         void OnDrawStats(DrawPixelInfo& dpi)
         {
+            // ebx
+            const auto peep = GetGuest();
+            if (peep == nullptr)
+            {
+                return;
+            }
+
+            int32_t happinessPercentage = NormalizeGuestStatValue(peep->Happiness, kPeepMaxHappiness, 10);
+            WidgetProgressBarSetNewPercentage(widgets[WIDX_HAPPINESS_BAR], happinessPercentage);
+
+            int32_t energyPercentage = NormalizeGuestStatValue(
+                peep->Energy - kPeepMinEnergy, kPeepMaxEnergy - kPeepMinEnergy, 10);
+            WidgetProgressBarSetNewPercentage(widgets[WIDX_ENERGY_BAR], energyPercentage);
+
+            int32_t hungerPercentage = NormalizeGuestStatValue(peep->Hunger - 32, 158, 0);
+            hungerPercentage = 100 - hungerPercentage; // the bar should be longer when peep->Hunger is low
+            WidgetProgressBarSetNewPercentage(widgets[WIDX_HUNGER_BAR], hungerPercentage);
+
+            int32_t thirstPercentage = NormalizeGuestStatValue(peep->Thirst - 32, 158, 0);
+            thirstPercentage = 100 - thirstPercentage; // the bar should be longer when peep->Thirst is low
+            WidgetProgressBarSetNewPercentage(widgets[WIDX_THIRST_BAR], thirstPercentage);
+
+            int32_t nauseaPercentage = NormalizeGuestStatValue(peep->Nausea - 32, 223, 0);
+            WidgetProgressBarSetNewPercentage(widgets[WIDX_NAUSEA_BAR], nauseaPercentage);
+
+            int32_t toiletPercentage = NormalizeGuestStatValue(peep->Toilet - 64, 178, 0);
+            WidgetProgressBarSetNewPercentage(widgets[WIDX_TOILET_BAR], toiletPercentage);
+
             DrawWidgets(dpi);
             OverviewTabDraw(dpi);
             StatsTabDraw(dpi);
@@ -1072,13 +1119,6 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             InventoryTabDraw(dpi);
             DebugTabDraw(dpi);
 
-            // ebx
-            const auto peep = GetGuest();
-            if (peep == nullptr)
-            {
-                return;
-            }
-
             // Not sure why this is not stats widgets
             // cx dx
             auto screenCoords = windowPos
@@ -1087,46 +1127,25 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             // Happiness
             DrawTextBasic(dpi, screenCoords, STR_GUEST_STAT_HAPPINESS_LABEL);
 
-            int32_t happinessPercentage = NormalizeGuestStatValue(peep->Happiness, kPeepMaxHappiness, 10);
-            WidgetProgressBarSetNewPercentage(widgets[WIDX_HAPPINESS_BAR], happinessPercentage);
-
             // Energy
             screenCoords.y += kListRowHeight;
             DrawTextBasic(dpi, screenCoords, STR_GUEST_STAT_ENERGY_LABEL);
-
-            int32_t energyPercentage = NormalizeGuestStatValue(
-                peep->Energy - kPeepMinEnergy, kPeepMaxEnergy - kPeepMinEnergy, 10);
-            WidgetProgressBarSetNewPercentage(widgets[WIDX_ENERGY_BAR], energyPercentage);
 
             // Hunger
             screenCoords.y += kListRowHeight;
             DrawTextBasic(dpi, screenCoords, STR_GUEST_STAT_HUNGER_LABEL);
 
-            int32_t hungerPercentage = NormalizeGuestStatValue(peep->Hunger - 32, 158, 0);
-            hungerPercentage = 100 - hungerPercentage; // the bar should be longer when peep->Hunger is low
-            WidgetProgressBarSetNewPercentage(widgets[WIDX_HUNGER_BAR], hungerPercentage);
-
             // Thirst
             screenCoords.y += kListRowHeight;
             DrawTextBasic(dpi, screenCoords, STR_GUEST_STAT_THIRST_LABEL);
-
-            int32_t thirstPercentage = NormalizeGuestStatValue(peep->Thirst - 32, 158, 0);
-            thirstPercentage = 100 - thirstPercentage; // the bar should be longer when peep->Thirst is low
-            WidgetProgressBarSetNewPercentage(widgets[WIDX_THIRST_BAR], thirstPercentage);
 
             // Nausea
             screenCoords.y += kListRowHeight;
             DrawTextBasic(dpi, screenCoords, STR_GUEST_STAT_NAUSEA_LABEL);
 
-            int32_t nauseaPercentage = NormalizeGuestStatValue(peep->Nausea - 32, 223, 0);
-            WidgetProgressBarSetNewPercentage(widgets[WIDX_NAUSEA_BAR], nauseaPercentage);
-
             // Toilet
             screenCoords.y += kListRowHeight;
             DrawTextBasic(dpi, screenCoords, STR_GUEST_STAT_TOILET_LABEL);
-
-            int32_t toiletPercentage = NormalizeGuestStatValue(peep->Toilet - 64, 178, 0);
-            WidgetProgressBarSetNewPercentage(widgets[WIDX_TOILET_BAR], toiletPercentage);
 
             // Time in park
             screenCoords.y += kListRowHeight + 1;
@@ -1257,9 +1276,9 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             if (visableHeight < 0)
                 visableHeight = 0;
 
-            if (visableHeight < scrolls[0].v_top)
+            if (visableHeight < scrolls[0].contentOffsetY)
             {
-                scrolls[0].v_top = visableHeight;
+                scrolls[0].contentOffsetY = visableHeight;
                 Invalidate();
             }
             return newSize;
@@ -1611,14 +1630,17 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             }
         }
 
-        std::pair<StringId, Formatter> InventoryFormatItem(Guest& guest, ShopItem item) const
+        std::pair<ImageId, Formatter> InventoryFormatItem(Guest& guest, ShopItem item) const
         {
-            auto parkName = OpenRCT2::GetGameState().Park.Name.c_str();
+            auto parkName = GetGameState().Park.Name.c_str();
+
+            // Default item image
+            auto& itemDesc = GetShopItemDescriptor(item);
+            auto itemImage = ImageId(itemDesc.Image);
 
             // Default arguments
             auto ft = Formatter();
-            ft.Add<uint32_t>(GetShopItemDescriptor(item).Image);
-            ft.Add<StringId>(GetShopItemDescriptor(item).Naming.Display);
+            ft.Add<StringId>(itemDesc.Naming.Display);
             ft.Add<StringId>(STR_STRING);
             ft.Add<const char*>(parkName);
 
@@ -1627,29 +1649,27 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
             switch (item)
             {
                 case ShopItem::Balloon:
-                    ft.Rewind();
-                    ft.Add<uint32_t>(ImageId(GetShopItemDescriptor(item).Image, (guest.BalloonColour)).ToUInt32());
+                    itemImage = ImageId(itemDesc.Image, guest.BalloonColour);
                     break;
                 case ShopItem::Photo:
                     invRide = GetRide(guest.Photo1RideRef);
                     if (invRide != nullptr)
                     {
                         ft.Rewind();
-                        ft.Increment(6);
+                        ft.Increment(2);
                         invRide->FormatNameTo(ft);
                     }
 
                     break;
                 case ShopItem::Umbrella:
-                    ft.Rewind();
-                    ft.Add<uint32_t>(ImageId(GetShopItemDescriptor(item).Image, (guest.UmbrellaColour)).ToUInt32());
+                    itemImage = ImageId(itemDesc.Image, guest.UmbrellaColour);
                     break;
                 case ShopItem::Voucher:
                     switch (guest.VoucherType)
                     {
                         case VOUCHER_TYPE_PARK_ENTRY_FREE:
                             ft.Rewind();
-                            ft.Increment(6);
+                            ft.Increment(2);
                             ft.Add<StringId>(STR_PEEP_INVENTORY_VOUCHER_PARK_ENTRY_FREE);
                             ft.Add<StringId>(STR_STRING);
                             ft.Add<const char*>(parkName);
@@ -1659,40 +1679,38 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                             if (invRide != nullptr)
                             {
                                 ft.Rewind();
-                                ft.Increment(6);
+                                ft.Increment(2);
                                 ft.Add<StringId>(STR_PEEP_INVENTORY_VOUCHER_RIDE_FREE);
                                 invRide->FormatNameTo(ft);
                             }
                             break;
                         case VOUCHER_TYPE_PARK_ENTRY_HALF_PRICE:
                             ft.Rewind();
-                            ft.Increment(6);
+                            ft.Increment(2);
                             ft.Add<StringId>(STR_PEEP_INVENTORY_VOUCHER_PARK_ENTRY_HALF_PRICE);
                             ft.Add<StringId>(STR_STRING);
                             ft.Add<const char*>(parkName);
                             break;
                         case VOUCHER_TYPE_FOOD_OR_DRINK_FREE:
                             ft.Rewind();
-                            ft.Increment(6);
+                            ft.Increment(2);
                             ft.Add<StringId>(STR_PEEP_INVENTORY_VOUCHER_FOOD_OR_DRINK_FREE);
                             ft.Add<StringId>(GetShopItemDescriptor(guest.VoucherShopItem).Naming.Singular);
                             break;
                     }
                     break;
                 case ShopItem::Hat:
-                    ft.Rewind();
-                    ft.Add<uint32_t>(ImageId(GetShopItemDescriptor(item).Image, (guest.HatColour)).ToUInt32());
+                    itemImage = ImageId(itemDesc.Image, guest.HatColour);
                     break;
                 case ShopItem::TShirt:
-                    ft.Rewind();
-                    ft.Add<uint32_t>(ImageId(GetShopItemDescriptor(item).Image, (guest.TshirtColour)).ToUInt32());
+                    itemImage = ImageId(itemDesc.Image, guest.TshirtColour);
                     break;
                 case ShopItem::Photo2:
                     invRide = GetRide(guest.Photo2RideRef);
                     if (invRide != nullptr)
                     {
                         ft.Rewind();
-                        ft.Increment(6);
+                        ft.Increment(2);
                         invRide->FormatNameTo(ft);
                     }
                     break;
@@ -1701,7 +1719,7 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                     if (invRide != nullptr)
                     {
                         ft.Rewind();
-                        ft.Increment(6);
+                        ft.Increment(2);
                         invRide->FormatNameTo(ft);
                     }
                     break;
@@ -1710,7 +1728,7 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                     if (invRide != nullptr)
                     {
                         ft.Rewind();
-                        ft.Increment(6);
+                        ft.Increment(2);
                         invRide->FormatNameTo(ft);
                     }
                     break;
@@ -1719,7 +1737,7 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                     break;
             }
 
-            return std::make_pair(STR_GUEST_ITEM_FORMAT, ft);
+            return std::make_pair(itemImage, ft);
         }
 
         void OnDrawInventory(DrawPixelInfo& dpi)
@@ -1739,9 +1757,9 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                 return;
             }
 
-            Widget* pageBackgroundWidget = &widgets[WIDX_PAGE_BACKGROUND];
-            auto screenCoords = windowPos + ScreenCoordsXY{ pageBackgroundWidget->left + 4, pageBackgroundWidget->top + 2 };
-            int32_t itemNameWidth = pageBackgroundWidget->width() - 8;
+            auto& widget = widgets[WIDX_PAGE_BACKGROUND];
+            auto screenCoords = windowPos + ScreenCoordsXY{ widget.left + 4, widget.top + 2 };
+            int32_t itemNameWidth = widget.width() - 24;
 
             int32_t maxY = windowPos.y + height - 22;
             int32_t numItems = 0;
@@ -1756,8 +1774,14 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                 if (!guest->HasItem(item))
                     continue;
 
-                auto [stringId, ft] = InventoryFormatItem(*guest, item);
-                screenCoords.y += DrawTextWrapped(dpi, screenCoords, itemNameWidth, stringId, ft);
+                auto [imageId, ft] = InventoryFormatItem(*guest, item);
+                GfxDrawSprite(dpi, imageId, screenCoords);
+
+                screenCoords.x += 16;
+                screenCoords.y += 1;
+                screenCoords.y += DrawTextWrapped(dpi, screenCoords, itemNameWidth, STR_BLACK_STRING, ft);
+
+                screenCoords.x -= 16;
                 numItems++;
             }
 
@@ -1836,14 +1860,14 @@ static_assert(_guestWindowPageWidgets.size() == WINDOW_GUEST_PAGE_COUNT);
                 if (peep->GetNextIsSurface())
                 {
                     OpenRCT2::FormatStringLegacy(buffer2, sizeof(buffer2), STR_PEEP_DEBUG_NEXT_SURFACE, nullptr);
-                    SafeStrCat(buffer, buffer2, sizeof(buffer));
+                    String::safeConcat(buffer, buffer2, sizeof(buffer));
                 }
                 if (peep->GetNextIsSloped())
                 {
                     auto ft2 = Formatter();
                     ft2.Add<int32_t>(peep->GetNextDirection());
                     OpenRCT2::FormatStringLegacy(buffer2, sizeof(buffer2), STR_PEEP_DEBUG_NEXT_SLOPE, ft2.Data());
-                    SafeStrCat(buffer, buffer2, sizeof(buffer));
+                    String::safeConcat(buffer, buffer2, sizeof(buffer));
                 }
                 DrawText(dpi, screenCoords, {}, buffer);
             }

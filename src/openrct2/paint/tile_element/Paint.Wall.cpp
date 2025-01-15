@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,13 +11,11 @@
 
 #include "../../Game.h"
 #include "../../GameState.h"
-#include "../../common.h"
 #include "../../config/Config.h"
 #include "../../drawing/Drawing.h"
 #include "../../interface/Colour.h"
 #include "../../interface/Viewport.h"
 #include "../../localisation/Formatting.h"
-#include "../../localisation/Localisation.h"
 #include "../../localisation/StringIds.h"
 #include "../../object/WallSceneryEntry.h"
 #include "../../profiling/Profiling.h"
@@ -27,7 +25,7 @@
 #include "../../world/Map.h"
 #include "../../world/Scenery.h"
 #include "../../world/TileInspector.h"
-#include "../../world/Wall.h"
+#include "../../world/tile_element/WallElement.h"
 #include "Paint.TileElement.h"
 
 using namespace OpenRCT2;

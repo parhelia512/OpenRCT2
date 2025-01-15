@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -14,6 +14,8 @@
 #include "../entity/Guest.h"
 #include "../scenario/Scenario.h"
 #include "../world/Location.hpp"
+#include "../world/tile_element/TileElement.h"
+#include "../world/tile_element/TrackElement.h"
 #include "RideEntry.h"
 #include "Track.h"
 #include "Vehicle.h"
@@ -410,12 +412,12 @@ StationIndex RideGetFirstEmptyStationStart(const Ride& ride)
 
 int32_t RideStation::GetBaseZ() const
 {
-    return Height * COORDS_Z_STEP;
+    return Height * kCoordsZStep;
 }
 
 void RideStation::SetBaseZ(int32_t newZ)
 {
-    Height = newZ / COORDS_Z_STEP;
+    Height = newZ / kCoordsZStep;
 }
 
 CoordsXYZ RideStation::GetStart() const

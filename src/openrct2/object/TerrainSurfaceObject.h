@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "../core/Money.hpp"
 #include "Object.h"
 
 struct CoordsXY;
@@ -35,6 +36,8 @@ private:
     static constexpr auto kNumImagesInEntry = 19;
 
 public:
+    static constexpr ObjectType kObjectType = ObjectType::TerrainSurface;
+
     static constexpr uint8_t kNoValue = 0xFF;
     StringId NameStringId{};
     uint32_t IconImageId{};

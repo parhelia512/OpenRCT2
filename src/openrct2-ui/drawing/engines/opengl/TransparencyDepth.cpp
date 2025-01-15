@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,11 +9,12 @@
 
 #ifndef DISABLE_OPENGL
 
-#    include "TransparencyDepth.h"
+    #include "TransparencyDepth.h"
 
-#    include <algorithm>
-#    include <map>
-#    include <vector>
+    #include <algorithm>
+    #include <cassert>
+    #include <map>
+    #include <vector>
 
 namespace OpenRCT2::Ui
 {

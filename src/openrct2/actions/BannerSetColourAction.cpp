@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,10 +10,14 @@
 #include "BannerSetColourAction.h"
 
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../management/Finance.h"
 #include "../windows/Intent.h"
 #include "../world/Banner.h"
+#include "../world/tile_element/BannerElement.h"
 #include "GameAction.h"
+
+using namespace OpenRCT2;
 
 BannerSetColourAction::BannerSetColourAction(const CoordsXYZD& loc, uint8_t primaryColour)
     : _loc(loc)

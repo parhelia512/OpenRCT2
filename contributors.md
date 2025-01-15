@@ -120,6 +120,9 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Fredrik Tegnell (fredriktegnell) - Misc.
 * Alex Parisi (alex-parisi) - Added API for returning metadata from all registered plugins.
 * Arnold Zhou (mrmagic2020) - Various plugin additions, new game option, misc.
+* John Dolph (johnwdolph) - Ride music UI, misc.
+* Harry Hopkinson (Harry-Hopkinson) - Added Cheat for guests ignoring price of rides and stalls.
+* Kendall Frey (kendfrey) - Add plugin API for spawning guests
 
 ## Bug fixes & Refactors
 * Claudio Tiecher (janclod)
@@ -241,6 +244,9 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Karsten Van Fossan (karstenvanf)
 * Kaavya Ramachandhran (ayvaak)
 * Mike Harvey (harvito)
+* Robert Yan (lewyche)
+* Tom Matalenas (tmatale)
+* Brendan Heinonen (staticinvocation)
 
 ## Toolchain
 * (Balletie) - macOS
@@ -287,7 +293,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Norwegian - Hugo Wallenburg (Goddesen)
 * Polish - Adrian Wielgosik (adrian17), (lopezloo), Michał Janiszewski (janisozaur)
 * Portuguese (BR) - (kaudy), (renansimoes), Tulio Paschoalin Leao (tupaschoal)
-* Russian - (Soosisya)
+* Russian - (Soosisya), (andOlga)
 * Spanish - Josué Acevedo (Wirlie), Diego Mateos (dimateos), (frenchiveruti), (mdtrooper), Daniel Trujillo Viedma (gDanix); small fixes: (teapartycthulu)
 * Swedish - (Jinxit), (mharrys), (Slimeyo), Matte Andersson (Nubbie)
 * Ukrainian - (CsyeCokTheSolly), (Veydzher), (Saba4ara)
@@ -302,6 +308,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Martijn Kroese (MK98) - Diagonal brakes project
 * Peter van den Berg (Recurious) - Diagonal brakes project
 * Joshua Jacobs - OpenGraphics Spooky Theme
+* (mixiate) - Wooden and Mine Train Rollercoaster flat-to-steep track pieces
 
 ## Music
 * Karst "Jalmaan" van Galen Last (AuraSpecs)
@@ -311,6 +318,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Herman Riddering - Owner of the 35er Voigt, which provided new recordings for the Fairground organ styles.
 * (Skyshard)
 * (Blackend Blue)
+* Andrew Sinclair (Approaching Nirvana) - Progressive style
 
 ## Sound Effects
 * Karst van Galen Last (AuraSpecs)

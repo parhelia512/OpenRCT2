@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,18 +9,18 @@
 
 #if !defined(DISABLE_HTTP) && defined(__ANDROID__)
 
-#    include "Http.h"
+    #include "Http.h"
 
-#    include "../Version.h"
-#    include "../platform/Platform.h"
+    #include "../Version.h"
+    #include "../platform/Platform.h"
 
-#    include <SDL.h>
-#    include <android/log.h>
-#    include <jni.h>
+    #include <SDL.h>
+    #include <android/log.h>
+    #include <jni.h>
 
-#    define OPENRCT2_USER_AGENT "OpenRCT2/" OPENRCT2_VERSION
+    #define OPENRCT2_USER_AGENT "OpenRCT2/" OPENRCT2_VERSION
 
-namespace Http
+namespace OpenRCT2::Http
 {
     Response Do(const Request& req)
     {
@@ -174,6 +174,6 @@ namespace Http
         return response;
     }
 
-} // namespace Http
+} // namespace OpenRCT2::Http
 
 #endif

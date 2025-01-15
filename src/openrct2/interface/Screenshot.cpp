@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,6 +10,7 @@
 #include "Screenshot.h"
 
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../Game.h"
 #include "../GameState.h"
 #include "../OpenRCT2.h"
@@ -18,6 +19,7 @@
 #include "../audio/audio.h"
 #include "../config/Config.h"
 #include "../core/Console.hpp"
+#include "../core/EnumUtils.hpp"
 #include "../core/File.h"
 #include "../core/Imaging.h"
 #include "../core/Path.hpp"
@@ -25,14 +27,12 @@
 #include "../drawing/Drawing.h"
 #include "../drawing/X8DrawingEngine.h"
 #include "../localisation/Formatter.h"
-#include "../localisation/Localisation.h"
 #include "../paint/Painter.h"
 #include "../platform/Platform.h"
-#include "../util/Util.h"
 #include "../world/Climate.h"
 #include "../world/Map.h"
 #include "../world/Park.h"
-#include "../world/Surface.h"
+#include "../world/tile_element/SurfaceElement.h"
 #include "Viewport.h"
 
 #include <cctype>
@@ -55,15 +55,15 @@ uint8_t gScreenshotCountdown = 0;
 static bool WriteDpiToFile(std::string_view path, const DrawPixelInfo& dpi, const GamePalette& palette)
 {
     auto const pixels8 = dpi.bits;
-    auto const pixelsLen = (dpi.width + dpi.pitch) * dpi.height;
+    auto const pixelsLen = dpi.LineStride() * dpi.height;
     try
     {
         Image image;
         image.Width = dpi.width;
         image.Height = dpi.height;
         image.Depth = 8;
-        image.Stride = dpi.width + dpi.pitch;
-        image.Palette = std::make_unique<GamePalette>(palette);
+        image.Stride = dpi.LineStride();
+        image.Palette = palette;
         image.Pixels = std::vector<uint8_t>(pixels8, pixels8 + pixelsLen);
         Imaging::WriteToFile(path, image, IMAGE_FORMAT::PNG);
         return true;
@@ -190,36 +190,6 @@ std::string ScreenshotDumpPNG(DrawPixelInfo& dpi)
     return "";
 }
 
-std::string ScreenshotDumpPNG32bpp(int32_t width, int32_t height, const void* pixels)
-{
-    auto path = ScreenshotGetNextPath();
-
-    if (!path.has_value())
-    {
-        return "";
-    }
-
-    const auto pixels8 = static_cast<const uint8_t*>(pixels);
-    const auto pixelsLen = width * 4 * height;
-
-    try
-    {
-        Image image;
-        image.Width = width;
-        image.Height = height;
-        image.Depth = 32;
-        image.Stride = width * 4;
-        image.Pixels = std::vector<uint8_t>(pixels8, pixels8 + pixelsLen);
-        Imaging::WriteToFile(path.value(), image, IMAGE_FORMAT::PNG_32);
-        return path.value();
-    }
-    catch (const std::exception& e)
-    {
-        LOG_ERROR("Unable to save screenshot: %s", e.what());
-        return "";
-    }
-}
-
 static int32_t GetHighestBaseClearanceZ(const CoordsXY& location, const bool useViewClipping)
 {
     int32_t z = 0;
@@ -228,7 +198,7 @@ static int32_t GetHighestBaseClearanceZ(const CoordsXY& location, const bool use
     {
         do
         {
-            if (useViewClipping && (element->GetBaseZ() > gClipHeight * COORDS_Z_STEP))
+            if (useViewClipping && (element->GetBaseZ() > gClipHeight * kCoordsZStep))
             {
                 continue;
             }
@@ -327,10 +297,8 @@ static Viewport GetGiantViewport(int32_t rotation, ZoomLevel zoom)
 
     Viewport viewport{};
     viewport.viewPos = { left, top };
-    viewport.view_width = right - left;
-    viewport.view_height = bottom - top;
-    viewport.width = zoom.ApplyInversedTo(viewport.view_width);
-    viewport.height = zoom.ApplyInversedTo(viewport.view_height);
+    viewport.width = zoom.ApplyInversedTo(right - left);
+    viewport.height = zoom.ApplyInversedTo(bottom - top);
     viewport.zoom = zoom;
     viewport.rotation = rotation;
 
@@ -349,7 +317,7 @@ static void RenderViewport(IDrawingEngine* drawingEngine, const Viewport& viewpo
         drawingEngine = tempDrawingEngine.get();
     }
     dpi.DrawingEngine = drawingEngine;
-    ViewportRender(dpi, &viewport, { { 0, 0 }, { viewport.width, viewport.height } });
+    ViewportRender(dpi, &viewport);
 }
 
 void ScreenshotGiant()
@@ -464,7 +432,7 @@ int32_t CommandLineForScreenshot(const char** argv, int32_t argc, ScreenshotOpti
         }
     }
 
-    bool giantScreenshot = (argc == 5) && String::IEquals(argv[2], "giant");
+    bool giantScreenshot = (argc == 5) && String::iequals(argv[2], "giant");
     if (argc != 4 && argc != 8 && !giantScreenshot)
     {
         std::printf("Usage: openrct2 screenshot <file> <output_image> <width> <height> [<x> <y> <zoom> <rotation>]\n");
@@ -535,8 +503,8 @@ int32_t CommandLineForScreenshot(const char** argv, int32_t argc, ScreenshotOpti
             const auto& mapSize = GetGameState().MapSize;
             if (resolutionWidth == 0 || resolutionHeight == 0)
             {
-                resolutionWidth = (mapSize.x * COORDS_XY_STEP * 2) >> customZoom;
-                resolutionHeight = (mapSize.y * COORDS_XY_STEP * 1) >> customZoom;
+                resolutionWidth = (mapSize.x * kCoordsXYStep * 2) >> customZoom;
+                resolutionHeight = (mapSize.y * kCoordsXYStep * 1) >> customZoom;
 
                 resolutionWidth += 8;
                 resolutionHeight += 128;
@@ -544,8 +512,6 @@ int32_t CommandLineForScreenshot(const char** argv, int32_t argc, ScreenshotOpti
 
             viewport.width = resolutionWidth;
             viewport.height = resolutionHeight;
-            viewport.view_width = viewport.width;
-            viewport.view_height = viewport.height;
             if (customLocation)
             {
                 if (centreMapX)
@@ -558,8 +524,8 @@ int32_t CommandLineForScreenshot(const char** argv, int32_t argc, ScreenshotOpti
 
                 auto coords2d = Translate3DTo2DWithZ(customRotation, coords3d);
 
-                viewport.viewPos = { coords2d.x - ((viewport.view_width << customZoom) / 2),
-                                     coords2d.y - ((viewport.view_height << customZoom) / 2) };
+                viewport.viewPos = { coords2d.x - ((viewport.ViewWidth() << customZoom) / 2),
+                                     coords2d.y - ((viewport.ViewHeight() << customZoom) / 2) };
                 viewport.zoom = ZoomLevel{ static_cast<int8_t>(customZoom) };
                 viewport.rotation = customRotation;
             }
@@ -567,7 +533,7 @@ int32_t CommandLineForScreenshot(const char** argv, int32_t argc, ScreenshotOpti
             {
                 auto& gameState = GetGameState();
                 viewport.viewPos = { gameState.SavedView
-                                     - ScreenCoordsXY{ (viewport.view_width / 2), (viewport.view_height / 2) } };
+                                     - ScreenCoordsXY{ (viewport.ViewWidth() / 2), (viewport.ViewHeight() / 2) } };
                 viewport.zoom = gameState.SavedViewZoom;
                 viewport.rotation = gameState.SavedViewRotation;
             }
@@ -648,14 +614,12 @@ void CaptureImage(const CaptureOptions& options)
     {
         viewport.width = options.View->Width;
         viewport.height = options.View->Height;
-        viewport.view_width = viewport.width;
-        viewport.view_height = viewport.height;
 
         auto z = TileElementHeight(options.View->Position);
         CoordsXYZ coords3d(options.View->Position, z);
         auto coords2d = Translate3DTo2DWithZ(options.Rotation, coords3d);
-        viewport.viewPos = { coords2d.x - ((options.Zoom.ApplyTo(viewport.view_width)) / 2),
-                             coords2d.y - ((options.Zoom.ApplyTo(viewport.view_height)) / 2) };
+        viewport.viewPos = { coords2d.x - ((options.Zoom.ApplyTo(viewport.ViewWidth())) / 2),
+                             coords2d.y - ((options.Zoom.ApplyTo(viewport.ViewHeight())) / 2) };
         viewport.zoom = options.Zoom;
         viewport.rotation = options.Rotation;
     }

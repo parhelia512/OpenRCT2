@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,9 +9,7 @@
 
 #pragma once
 
-#include "../common.h"
-#include "../drawing/Drawing.h"
-#include "../util/Util.h"
+#include <cstdint>
 
 enum class ClimateType : uint8_t
 {
@@ -78,6 +76,8 @@ void ClimateUpdate();
 void ClimateUpdateSound();
 void ClimateStopWeatherSound();
 void ClimateForceWeather(WeatherType weather);
+
+enum class FilterPaletteID : int32_t;
 
 bool ClimateIsRaining();
 bool ClimateIsSnowing();

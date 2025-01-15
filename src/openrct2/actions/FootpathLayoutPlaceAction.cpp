@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -21,9 +21,11 @@
 #include "../world/Footpath.h"
 #include "../world/Location.hpp"
 #include "../world/Park.h"
-#include "../world/Surface.h"
-#include "../world/Wall.h"
+#include "../world/QuarterTile.h"
+#include "../world/tile_element/EntranceElement.h"
+#include "../world/tile_element/PathElement.h"
 #include "../world/tile_element/Slope.h"
+#include "../world/tile_element/SurfaceElement.h"
 
 using namespace OpenRCT2;
 
@@ -77,19 +79,19 @@ GameActions::Result FootpathLayoutPlaceAction::Query() const
             GameActions::Status::InvalidParameters, STR_RIDE_CONSTRUCTION_CANT_CONSTRUCT_THIS_HERE, STR_OFF_EDGE_OF_MAP);
     }
 
-    if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || GetGameState().Cheats.SandboxMode) && !MapIsLocationOwned(_loc))
+    if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || GetGameState().Cheats.sandboxMode) && !MapIsLocationOwned(_loc))
     {
         return GameActions::Result(
             GameActions::Status::Disallowed, STR_RIDE_CONSTRUCTION_CANT_CONSTRUCT_THIS_HERE, STR_LAND_NOT_OWNED_BY_PARK);
     }
 
-    if (_loc.z < FootpathMinHeight)
+    if (_loc.z < kFootpathMinHeight)
     {
         return GameActions::Result(
             GameActions::Status::Disallowed, STR_RIDE_CONSTRUCTION_CANT_CONSTRUCT_THIS_HERE, STR_TOO_LOW);
     }
 
-    if (_loc.z > FootpathMaxHeight)
+    if (_loc.z > kFootpathMaxHeight)
     {
         return GameActions::Result(
             GameActions::Status::Disallowed, STR_RIDE_CONSTRUCTION_CANT_CONSTRUCT_THIS_HERE, STR_TOO_HIGH);
@@ -133,11 +135,11 @@ GameActions::Result FootpathLayoutPlaceAction::ElementInsertQuery(GameActions::R
 
     QuarterTile quarterTile{ 0b1111, 0 };
     auto zLow = _loc.z;
-    auto zHigh = zLow + PATH_CLEARANCE;
+    auto zHigh = zLow + kPathClearance;
     if (_slope & FOOTPATH_PROPERTIES_FLAG_IS_SLOPED)
     {
         quarterTile = QuarterTile{ 0b1111, 0b1100 }.Rotate(_slope & kTileElementDirectionMask);
-        zHigh += PATH_HEIGHT_STEP;
+        zHigh += kPathHeightStep;
     }
 
     auto entranceElement = MapGetParkEntranceElementAt(_loc, false);
@@ -167,7 +169,7 @@ GameActions::Result FootpathLayoutPlaceAction::ElementInsertQuery(GameActions::R
     const auto clearanceData = canBuild.GetData<ConstructClearResult>();
     gFootpathGroundFlags = clearanceData.GroundFlags;
 
-    if (!GetGameState().Cheats.DisableClearanceChecks && (clearanceData.GroundFlags & ELEMENT_IS_UNDERWATER))
+    if (!GetGameState().Cheats.disableClearanceChecks && (clearanceData.GroundFlags & ELEMENT_IS_UNDERWATER))
     {
         return GameActions::Result(
             GameActions::Status::Disallowed, STR_RIDE_CONSTRUCTION_CANT_CONSTRUCT_THIS_HERE, STR_CANT_BUILD_THIS_UNDERWATER);
@@ -181,7 +183,7 @@ GameActions::Result FootpathLayoutPlaceAction::ElementInsertQuery(GameActions::R
             STR_ERR_SURFACE_ELEMENT_NOT_FOUND);
     }
     int32_t supportHeight = zLow - surfaceElement->GetBaseZ();
-    res.Cost += supportHeight < 0 ? 20.00_GBP : (supportHeight / PATH_HEIGHT_STEP) * 5.00_GBP;
+    res.Cost += supportHeight < 0 ? 20.00_GBP : (supportHeight / kPathHeightStep) * 5.00_GBP;
 
     // Prevent the place sound from being spammed
     if (entranceIsSamePath)
@@ -203,11 +205,11 @@ GameActions::Result FootpathLayoutPlaceAction::ElementInsertExecute(GameActions:
 
     QuarterTile quarterTile{ 0b1111, 0 };
     auto zLow = _loc.z;
-    auto zHigh = zLow + PATH_CLEARANCE;
+    auto zHigh = zLow + kPathClearance;
     if (_slope & FOOTPATH_PROPERTIES_FLAG_IS_SLOPED)
     {
         quarterTile = QuarterTile{ 0b1111, 0b1100 }.Rotate(_slope & kTileElementDirectionMask);
-        zHigh += PATH_HEIGHT_STEP;
+        zHigh += kPathHeightStep;
     }
 
     auto entranceElement = MapGetParkEntranceElementAt(_loc, false);
@@ -245,7 +247,7 @@ GameActions::Result FootpathLayoutPlaceAction::ElementInsertExecute(GameActions:
             STR_ERR_SURFACE_ELEMENT_NOT_FOUND);
     }
     int32_t supportHeight = zLow - surfaceElement->GetBaseZ();
-    res.Cost += supportHeight < 0 ? 20.00_GBP : (supportHeight / PATH_HEIGHT_STEP) * 5.00_GBP;
+    res.Cost += supportHeight < 0 ? 20.00_GBP : (supportHeight / kPathHeightStep) * 5.00_GBP;
 
     if (entrancePath)
     {

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,15 +11,20 @@
 #include <openrct2-ui/interface/Dropdown.h>
 #include <openrct2-ui/interface/Widget.h>
 #include <openrct2-ui/windows/Window.h>
+#include <openrct2/Context.h>
 #include <openrct2/Game.h>
 #include <openrct2/actions/ParkMarketingAction.h>
 #include <openrct2/core/BitSet.hpp>
+#include <openrct2/core/String.hpp>
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/management/Marketing.h>
 #include <openrct2/ride/Ride.h>
 #include <openrct2/ride/RideData.h>
+#include <openrct2/ride/RideManager.hpp>
 #include <openrct2/ride/ShopItem.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 
 namespace OpenRCT2::Ui::Windows
 {
@@ -29,31 +34,32 @@ namespace OpenRCT2::Ui::Windows
 
     constexpr uint16_t SELECTED_ITEM_UNDEFINED = 0xFFFF;
 
-    // clang-format off
-enum WindowNewCampaignWidgetIdx {
-    WIDX_BACKGROUND,
-    WIDX_TITLE,
-    WIDX_CLOSE,
-    WIDX_RIDE_LABEL,
-    WIDX_RIDE_DROPDOWN,
-    WIDX_RIDE_DROPDOWN_BUTTON,
-    WIDX_WEEKS_LABEL,
-    WIDX_WEEKS_SPINNER,
-    WIDX_WEEKS_INCREASE_BUTTON,
-    WIDX_WEEKS_DECREASE_BUTTON,
-    WIDX_START_BUTTON
-};
+    enum WindowNewCampaignWidgetIdx
+    {
+        WIDX_BACKGROUND,
+        WIDX_TITLE,
+        WIDX_CLOSE,
+        WIDX_RIDE_LABEL,
+        WIDX_RIDE_DROPDOWN,
+        WIDX_RIDE_DROPDOWN_BUTTON,
+        WIDX_WEEKS_LABEL,
+        WIDX_WEEKS_SPINNER,
+        WIDX_WEEKS_INCREASE_BUTTON,
+        WIDX_WEEKS_DECREASE_BUTTON,
+        WIDX_START_BUTTON
+    };
 
-static Widget window_new_campaign_widgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget        ({ 14, 24}, {126, 12}, WindowWidgetType::Label,    WindowColour::Primary, STR_EMPTY                                  ), // ride label
-    MakeWidget        ({100, 24}, {242, 12}, WindowWidgetType::DropdownMenu, WindowColour::Primary, STR_EMPTY                                  ), // ride dropdown
-    MakeWidget        ({330, 25}, { 11, 10}, WindowWidgetType::Button,   WindowColour::Primary, STR_DROPDOWN_GLYPH                         ), // ride dropdown button
-    MakeWidget        ({ 14, 41}, {126, 14}, WindowWidgetType::Label,    WindowColour::Primary, STR_LENGTH_OF_TIME                         ), // weeks label
-    MakeSpinnerWidgets({120, 41}, {100, 14}, WindowWidgetType::Spinner,  WindowColour::Primary, STR_EMPTY                                  ), // weeks (3 widgets)
-    MakeWidget        ({ 14, 89}, {322, 14}, WindowWidgetType::Button,   WindowColour::Primary, STR_MARKETING_START_THIS_MARKETING_CAMPAIGN), // start button
-    kWidgetsEnd,
-};
+    // clang-format off
+    static Widget window_new_campaign_widgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeWidget        ({ 14, 24}, {126, 12}, WindowWidgetType::Label,    WindowColour::Primary, STR_EMPTY                                  ), // ride label
+        MakeWidget        ({100, 24}, {242, 12}, WindowWidgetType::DropdownMenu, WindowColour::Primary, STR_EMPTY                                  ), // ride dropdown
+        MakeWidget        ({330, 25}, { 11, 10}, WindowWidgetType::Button,   WindowColour::Primary, STR_DROPDOWN_GLYPH                         ), // ride dropdown button
+        MakeWidget        ({ 14, 41}, {126, 14}, WindowWidgetType::Label,    WindowColour::Primary, STR_LENGTH_OF_TIME                         ), // weeks label
+        MakeSpinnerWidgets({120, 41}, {100, 14}, WindowWidgetType::Spinner,  WindowColour::Primary, STR_EMPTY                                  ), // weeks (3 widgets)
+        MakeWidget        ({ 14, 89}, {322, 14}, WindowWidgetType::Button,   WindowColour::Primary, STR_MARKETING_START_THIS_MARKETING_CAMPAIGN), // start button
+        kWidgetsEnd,
+    };
     // clang-format on
 
     class NewCampaignWindow final : public Window
@@ -99,7 +105,7 @@ static Widget window_new_campaign_widgets[] = {
             if (rideB != nullptr)
                 rideBName = rideB->GetName();
 
-            return StrLogicalCmp(rideAName.c_str(), rideBName.c_str()) < 0;
+            return String::logicalCmp(rideAName.c_str(), rideBName.c_str()) < 0;
         }
 
         /**
@@ -143,12 +149,17 @@ static Widget window_new_campaign_widgets[] = {
             {
                 if (curRide.status == RideStatus::Open)
                 {
-                    if (!curRide.GetRideTypeDescriptor().HasFlag(
-                            RIDE_TYPE_FLAG_IS_SHOP_OR_FACILITY | RIDE_TYPE_FLAG_SELLS_FOOD | RIDE_TYPE_FLAG_SELLS_DRINKS
-                            | RIDE_TYPE_FLAG_IS_TOILET))
-                    {
-                        RideList.push_back(curRide.id);
-                    }
+                    const auto& rtd = curRide.GetRideTypeDescriptor();
+                    if (rtd.HasFlag(RtdFlag::isShopOrFacility))
+                        continue;
+                    if (rtd.HasFlag(RtdFlag::sellsFood))
+                        continue;
+                    if (rtd.HasFlag(RtdFlag::sellsDrinks))
+                        continue;
+                    if (rtd.specialType == RtdSpecialType::toilet)
+                        continue;
+
+                    RideList.push_back(curRide.id);
                 }
             }
 
@@ -171,7 +182,7 @@ static Widget window_new_campaign_widgets[] = {
 
         void SetCampaign(int16_t campaignType)
         {
-            widgets[WIDX_TITLE].text = MarketingCampaignNames[campaignType][0];
+            widgets[WIDX_TITLE].text = kMarketingCampaignNames[campaignType][0];
 
             // Campaign type
             Campaign.campaign_type = campaignType;
@@ -413,7 +424,8 @@ static Widget window_new_campaign_widgets[] = {
 
     void WindowCampaignRefreshRides()
     {
-        auto w = static_cast<NewCampaignWindow*>(WindowFindByClass(WindowClass::NewCampaign));
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto w = static_cast<NewCampaignWindow*>(windowMgr->FindByClass(WindowClass::NewCampaign));
         if (w != nullptr)
         {
             w->RefreshRides();

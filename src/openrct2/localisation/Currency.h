@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,9 +9,10 @@
 
 #pragma once
 
-#include "../common.h"
-#include "../core/String.hpp"
-#include "../util/Util.h"
+#include "../core/EnumUtils.hpp"
+#include "../core/Money.hpp"
+#include "../core/StringTypes.h"
+#include "../localisation/StringIdType.h"
 #include "CurrencyTypes.h"
 
 constexpr size_t kCurrencySymbolMaxSize = 8;
@@ -39,3 +40,9 @@ extern CurrencyDescriptor CurrencyDescriptors[EnumValue(CurrencyType::Count)];
  * custom currency entry
  */
 void CurrencyLoadCustomCurrencyConfig();
+
+// The maximum number of characters allowed for string/money conversions (anything above will risk integer overflow issues)
+constexpr size_t kMoneyStringMaxlength = 14;
+
+money64 StringToMoney(const char* string_to_monetise);
+void MoneyToString(money64 amount, char* buffer_to_put_value_to, size_t buffer_len, bool forceDecimals);

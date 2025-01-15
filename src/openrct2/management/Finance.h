@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -32,7 +32,7 @@ enum class ExpenditureType : int32_t
 };
 
 constexpr uint8_t kExpenditureTableMonthCount = 16;
-constexpr uint8_t kFinanceGraphSize = 128;
+constexpr uint8_t kFinanceHistorySize = 128;
 
 constexpr uint8_t MaxBankLoanInterestRate = 255;
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -23,7 +23,6 @@
 #include "../entity/Staff.h"
 #include "../interface/Colour.h"
 #include "../interface/Window.h"
-#include "../localisation/Localisation.h"
 #include "../management/Award.h"
 #include "../management/Finance.h"
 #include "../management/Marketing.h"
@@ -32,24 +31,25 @@
 #include "../profiling/Profiling.h"
 #include "../ride/Ride.h"
 #include "../ride/RideData.h"
+#include "../ride/RideManager.hpp"
 #include "../ride/ShopItem.h"
 #include "../scenario/Scenario.h"
+#include "../scripting/ScriptEngine.h"
 #include "../util/Util.h"
 #include "../windows/Intent.h"
 #include "Entrance.h"
 #include "Map.h"
-#include "Surface.h"
+#include "tile_element/EntranceElement.h"
+#include "tile_element/SurfaceElement.h"
 
 #include <limits>
 #include <type_traits>
 
 using namespace OpenRCT2;
+using namespace OpenRCT2::Scripting;
 
 namespace OpenRCT2::Park
 {
-    // If this value is more than or equal to 0, the park rating is forced to this value. Used for cheat
-    static int32_t _forcedParkRating = -1;
-
     static money64 calculateRideValue(const Ride& ride);
     static money64 calculateTotalRideValueForMoney();
     static uint32_t calculateSuggestedMaxGuests();
@@ -137,13 +137,13 @@ namespace OpenRCT2::Park
             {
                 if (!(ride.lifecycle_flags & RIDE_LIFECYCLE_TESTED))
                     continue;
-                if (!ride.GetRideTypeDescriptor().HasFlag(RIDE_TYPE_FLAG_HAS_TRACK))
+                if (!ride.GetRideTypeDescriptor().HasFlag(RtdFlag::hasTrack))
                     continue;
-                if (!ride.GetRideTypeDescriptor().HasFlag(RIDE_TYPE_FLAG_HAS_DATA_LOGGING))
+                if (!ride.GetRideTypeDescriptor().HasFlag(RtdFlag::hasDataLogging))
                     continue;
                 if (ride.GetStation().SegmentLength < (600 << 16))
                     continue;
-                if (ride.excitement < RIDE_RATING(6, 00))
+                if (ride.ratings.excitement < RIDE_RATING(6, 00))
                     continue;
 
                 // Bonus guests for good ride
@@ -158,6 +158,21 @@ namespace OpenRCT2::Park
         }
 
         suggestedMaxGuests = std::min<uint32_t>(suggestedMaxGuests, 65535);
+
+#ifdef ENABLE_SCRIPTING
+        auto& hookEngine = GetContext()->GetScriptEngine().GetHookEngine();
+        if (hookEngine.HasSubscriptions(HOOK_TYPE::PARK_CALCULATE_GUEST_CAP))
+        {
+            auto ctx = GetContext()->GetScriptEngine().GetContext();
+            auto obj = DukObject(ctx);
+            obj.Set("suggestedGuestMaximum", suggestedMaxGuests);
+            auto e = obj.Take();
+            hookEngine.Call(HOOK_TYPE::PARK_CALCULATE_GUEST_CAP, e, true);
+
+            suggestedMaxGuests = AsOrDefault(e["suggestedGuestMaximum"], static_cast<int32_t>(suggestedMaxGuests));
+            suggestedMaxGuests = std::clamp<uint16_t>(suggestedMaxGuests, 0, UINT16_MAX);
+        }
+#endif
         return suggestedMaxGuests;
     }
 
@@ -250,7 +265,8 @@ namespace OpenRCT2::Park
         return peep;
     }
 
-    template<typename T, size_t TSize> static void HistoryPushRecord(T history[TSize], T newItem)
+    template<typename T, size_t TSize>
+    static void HistoryPushRecord(T history[TSize], T newItem)
     {
         for (size_t i = TSize - 1; i > 0; i--)
         {
@@ -309,7 +325,7 @@ namespace OpenRCT2::Park
         AwardReset();
 
         gameState.ScenarioName.clear();
-        gameState.ScenarioDetails = String::ToStd(LanguageGetString(STR_NO_DETAILS_YET));
+        gameState.ScenarioDetails = String::toStd(LanguageGetString(STR_NO_DETAILS_YET));
     }
 
     void Update(GameState_t& gameState, const Date& date)
@@ -377,12 +393,13 @@ namespace OpenRCT2::Park
 
     int32_t CalculateParkRating()
     {
-        if (_forcedParkRating >= 0)
+        auto& gameState = GetGameState();
+
+        if (gameState.Cheats.forcedParkRating != kForcedParkRatingDisabled)
         {
-            return _forcedParkRating;
+            return gameState.Cheats.forcedParkRating;
         }
 
-        auto& gameState = GetGameState();
         int32_t result = 1150;
         if (gameState.Park.Flags & PARK_FLAGS_DIFFICULT_PARK_RATING)
         {
@@ -438,8 +455,8 @@ namespace OpenRCT2::Park
                 totalRideUptime += 100 - ride.downtime;
                 if (RideHasRatings(ride))
                 {
-                    totalRideExcitement += ride.excitement / 8;
-                    totalRideIntensity += ride.intensity / 8;
+                    totalRideExcitement += ride.ratings.excitement / 8;
+                    totalRideIntensity += ride.ratings.intensity / 8;
                     excitingRideCount++;
                 }
                 rideCount++;
@@ -565,9 +582,10 @@ namespace OpenRCT2::Park
 
     void ResetHistories(GameState_t& gameState)
     {
-        std::fill(std::begin(gameState.Park.RatingHistory), std::end(gameState.Park.RatingHistory), ParkRatingHistoryUndefined);
         std::fill(
-            std::begin(gameState.GuestsInParkHistory), std::end(gameState.GuestsInParkHistory), GuestsInParkHistoryUndefined);
+            std::begin(gameState.Park.RatingHistory), std::end(gameState.Park.RatingHistory), kParkRatingHistoryUndefined);
+        std::fill(
+            std::begin(gameState.GuestsInParkHistory), std::end(gameState.GuestsInParkHistory), kGuestsInParkHistoryUndefined);
     }
 
     void UpdateHistories(GameState_t& gameState)
@@ -587,8 +605,10 @@ namespace OpenRCT2::Park
         gameState.NumGuestsInParkLastWeek = gameState.NumGuestsInPark;
 
         // Update park rating, guests in park and current cash history
-        HistoryPushRecord<uint8_t, 32>(gameState.Park.RatingHistory, gameState.Park.Rating / 4);
-        HistoryPushRecord<uint32_t, 32>(gameState.GuestsInParkHistory, gameState.NumGuestsInPark);
+        constexpr auto ratingHistorySize = std::extent_v<decltype(ParkData::RatingHistory)>;
+        HistoryPushRecord<uint16_t, ratingHistorySize>(gameState.Park.RatingHistory, gameState.Park.Rating);
+        constexpr auto numGuestsHistorySize = std::extent_v<decltype(GameState_t::GuestsInParkHistory)>;
+        HistoryPushRecord<uint32_t, numGuestsHistorySize>(gameState.GuestsInParkHistory, gameState.NumGuestsInPark);
 
         constexpr auto cashHistorySize = std::extent_v<decltype(GameState_t::CashHistory)>;
         HistoryPushRecord<money64, cashHistorySize>(gameState.CashHistory, FinanceGetCurrentCash() - gameState.BankLoan);
@@ -671,22 +691,22 @@ namespace OpenRCT2::Park
 
             if (fenceRequired)
             {
-                if (MapIsLocationInPark({ coords.x - COORDS_XY_STEP, coords.y }))
+                if (MapIsLocationInPark({ coords.x - kCoordsXYStep, coords.y }))
                 {
                     newFences |= 0x8;
                 }
 
-                if (MapIsLocationInPark({ coords.x, coords.y - COORDS_XY_STEP }))
+                if (MapIsLocationInPark({ coords.x, coords.y - kCoordsXYStep }))
                 {
                     newFences |= 0x4;
                 }
 
-                if (MapIsLocationInPark({ coords.x + COORDS_XY_STEP, coords.y }))
+                if (MapIsLocationInPark({ coords.x + kCoordsXYStep, coords.y }))
                 {
                     newFences |= 0x2;
                 }
 
-                if (MapIsLocationInPark({ coords.x, coords.y + COORDS_XY_STEP }))
+                if (MapIsLocationInPark({ coords.x, coords.y + kCoordsXYStep }))
                 {
                     newFences |= 0x1;
                 }
@@ -705,23 +725,25 @@ namespace OpenRCT2::Park
     void UpdateFencesAroundTile(const CoordsXY& coords)
     {
         UpdateFences(coords);
-        UpdateFences({ coords.x + COORDS_XY_STEP, coords.y });
-        UpdateFences({ coords.x - COORDS_XY_STEP, coords.y });
-        UpdateFences({ coords.x, coords.y + COORDS_XY_STEP });
-        UpdateFences({ coords.x, coords.y - COORDS_XY_STEP });
+        UpdateFences({ coords.x + kCoordsXYStep, coords.y });
+        UpdateFences({ coords.x - kCoordsXYStep, coords.y });
+        UpdateFences({ coords.x, coords.y + kCoordsXYStep });
+        UpdateFences({ coords.x, coords.y - kCoordsXYStep });
     }
 
     void SetForcedRating(int32_t rating)
     {
-        _forcedParkRating = rating;
-        GetGameState().Park.Rating = CalculateParkRating();
+        auto& gameState = GetGameState();
+        gameState.Cheats.forcedParkRating = rating;
+        gameState.Park.Rating = CalculateParkRating();
+
         auto intent = Intent(INTENT_ACTION_UPDATE_PARK_RATING);
         ContextBroadcastIntent(&intent);
     }
 
     int32_t GetForcedRating()
     {
-        return _forcedParkRating;
+        return GetGameState().Cheats.forcedParkRating;
     }
 
     money64 GetEntranceFee()

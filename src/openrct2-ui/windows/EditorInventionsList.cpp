@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -8,23 +8,26 @@
  *****************************************************************************/
 
 #include <iterator>
+#include <openrct2-ui/input/MouseInput.h>
 #include <openrct2-ui/interface/Widget.h>
 #include <openrct2-ui/windows/Window.h>
+#include <openrct2/Context.h>
 #include <openrct2/Editor.h>
 #include <openrct2/GameState.h>
 #include <openrct2/Input.h>
 #include <openrct2/OpenRCT2.h>
 #include <openrct2/interface/Cursors.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
 #include <openrct2/management/Research.h>
 #include <openrct2/object/DefaultObjects.h>
 #include <openrct2/object/ObjectList.h>
 #include <openrct2/object/ObjectManager.h>
 #include <openrct2/object/ObjectRepository.h>
 #include <openrct2/ride/RideData.h>
+#include <openrct2/ride/RideManager.hpp>
 #include <openrct2/sprites.h>
-#include <openrct2/util/Util.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <openrct2/world/Scenery.h>
 
 namespace OpenRCT2::Ui::Windows
@@ -35,38 +38,39 @@ namespace OpenRCT2::Ui::Windows
     static constexpr int32_t WH = 400;
     static constexpr StringId WINDOW_TITLE = STR_INVENTION_LIST;
 
+    enum
+    {
+        WIDX_BACKGROUND,
+        WIDX_TITLE,
+        WIDX_CLOSE,
+        WIDX_RESIZE,
+        WIDX_TAB_1,
+        WIDX_PRE_RESEARCHED_SCROLL,
+        WIDX_RESEARCH_ORDER_SCROLL,
+        WIDX_PREVIEW,
+        WIDX_MOVE_ITEMS_TO_TOP,
+        WIDX_MOVE_ITEMS_TO_BOTTOM,
+        WIDX_RANDOM_SHUFFLE
+    };
+
     // clang-format off
-enum {
-    WIDX_BACKGROUND,
-    WIDX_TITLE,
-    WIDX_CLOSE,
-    WIDX_RESIZE,
-    WIDX_TAB_1,
-    WIDX_PRE_RESEARCHED_SCROLL,
-    WIDX_RESEARCH_ORDER_SCROLL,
-    WIDX_PREVIEW,
-    WIDX_MOVE_ITEMS_TO_TOP,
-    WIDX_MOVE_ITEMS_TO_BOTTOM,
-    WIDX_RANDOM_SHUFFLE
-};
+    static Widget _inventionListWidgets[] = {
+        WINDOW_SHIM(WINDOW_TITLE, WW, WH),
+        MakeWidget({  0,  43}, {600, 357}, WindowWidgetType::Resize,  WindowColour::Secondary                                             ),
+        MakeTab   ({  3,  17}                                                                                               ),
+        MakeWidget({  4,  56}, {368, 161}, WindowWidgetType::Scroll,  WindowColour::Secondary, SCROLL_VERTICAL                            ),
+        MakeWidget({  4, 231}, {368, 157}, WindowWidgetType::Scroll,  WindowColour::Secondary, SCROLL_VERTICAL                            ),
+        MakeWidget({431, 106}, {114, 114}, WindowWidgetType::FlatBtn, WindowColour::Secondary                                             ),
+        MakeWidget({375, 343}, {220,  14}, WindowWidgetType::Button,  WindowColour::Secondary, STR_MOVE_ALL_TOP                           ),
+        MakeWidget({375, 358}, {220,  14}, WindowWidgetType::Button,  WindowColour::Secondary, STR_MOVE_ALL_BOTTOM                        ),
+        MakeWidget({375, 373}, {220,  14}, WindowWidgetType::Button,  WindowColour::Secondary, STR_RANDOM_SHUFFLE,  STR_RANDOM_SHUFFLE_TIP),
+        kWidgetsEnd,
+    };
 
-static Widget _inventionListWidgets[] = {
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget({  0,  43}, {600, 357}, WindowWidgetType::Resize,  WindowColour::Secondary                                             ),
-    MakeTab   ({  3,  17}                                                                                               ),
-    MakeWidget({  4,  56}, {368, 161}, WindowWidgetType::Scroll,  WindowColour::Secondary, SCROLL_VERTICAL                            ),
-    MakeWidget({  4, 231}, {368, 157}, WindowWidgetType::Scroll,  WindowColour::Secondary, SCROLL_VERTICAL                            ),
-    MakeWidget({431, 106}, {114, 114}, WindowWidgetType::FlatBtn, WindowColour::Secondary                                             ),
-    MakeWidget({375, 343}, {220,  14}, WindowWidgetType::Button,  WindowColour::Secondary, STR_MOVE_ALL_TOP                           ),
-    MakeWidget({375, 358}, {220,  14}, WindowWidgetType::Button,  WindowColour::Secondary, STR_MOVE_ALL_BOTTOM                        ),
-    MakeWidget({375, 373}, {220,  14}, WindowWidgetType::Button,  WindowColour::Secondary, STR_RANDOM_SHUFFLE,  STR_RANDOM_SHUFFLE_TIP),
-    kWidgetsEnd,
-};
-
-static Widget _inventionListDragWidgets[] = {
-    MakeWidget({0, 0}, {150, 14}, WindowWidgetType::ImgBtn, WindowColour::Primary),
-    kWidgetsEnd,
-};
+    static Widget _inventionListDragWidgets[] = {
+        MakeWidget({0, 0}, {150, 14}, WindowWidgetType::ImgBtn, WindowColour::Primary),
+        kWidgetsEnd,
+    };
     // clang-format on
 
 #pragma endregion
@@ -108,7 +112,7 @@ static Widget _inventionListDragWidgets[] = {
         int16_t columnSplitOffset = width / 2;
 
         if (researchItem.type == Research::EntryType::Ride
-            && !GetRideTypeDescriptor(researchItem.baseRideType).HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY))
+            && !GetRideTypeDescriptor(researchItem.baseRideType).HasFlag(RtdFlag::listVehiclesSeparately))
         {
             const StringId rideTypeName = GetRideNaming(
                                               researchItem.baseRideType, *GetRideEntryByIndex(researchItem.entryIndex))
@@ -420,7 +424,7 @@ static Widget _inventionListDragWidgets[] = {
             auto ft = Formatter();
 
             if (researchItem->type == Research::EntryType::Ride
-                && !GetRideTypeDescriptor(researchItem->baseRideType).HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY))
+                && !GetRideTypeDescriptor(researchItem->baseRideType).HasFlag(RtdFlag::listVehiclesSeparately))
             {
                 drawString = STR_WINDOW_COLOUR_2_STRINGID_STRINGID;
                 StringId rideTypeName = GetRideNaming(
@@ -488,7 +492,9 @@ static Widget _inventionListDragWidgets[] = {
             if (windowPos.x <= screenCoords.x && windowPos.y < screenCoords.y && windowPos.x + width > screenCoords.x
                 && windowPos.y + height > screenCoords.y)
             {
-                WidgetIndex widgetIndex = WindowFindWidgetFromPoint(*this, screenCoords);
+                auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+                WidgetIndex widgetIndex = windowMgr->FindWidgetFromPoint(*this, screenCoords);
+
                 auto& widget = widgets[widgetIndex];
                 if (widgetIndex == WIDX_PRE_RESEARCHED_SCROLL || widgetIndex == WIDX_RESEARCH_ORDER_SCROLL)
                 {
@@ -611,7 +617,9 @@ static Widget _inventionListDragWidgets[] = {
 
         CursorID OnCursor(const WidgetIndex widx, const ScreenCoordsXY& screenCoords, const CursorID defaultCursor) override
         {
-            auto* inventionListWindow = static_cast<InventionListWindow*>(WindowFindByClass(WindowClass::EditorInventionList));
+            auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+            auto* inventionListWindow = static_cast<InventionListWindow*>(
+                windowMgr->FindByClass(WindowClass::EditorInventionList));
             if (inventionListWindow != nullptr)
             {
                 auto res = inventionListWindow->GetResearchItemAt(screenCoords);
@@ -628,7 +636,9 @@ static Widget _inventionListDragWidgets[] = {
 
         void OnMoved(const ScreenCoordsXY& screenCoords) override
         {
-            auto* inventionListWindow = static_cast<InventionListWindow*>(WindowFindByClass(WindowClass::EditorInventionList));
+            auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+            auto* inventionListWindow = static_cast<InventionListWindow*>(
+                windowMgr->FindByClass(WindowClass::EditorInventionList));
             if (inventionListWindow == nullptr)
             {
                 Close();
@@ -694,7 +704,8 @@ static Widget _inventionListDragWidgets[] = {
 
     static const ResearchItem* WindowEditorInventionsListDragGetItem()
     {
-        auto* wnd = static_cast<InventionDragWindow*>(WindowFindByClass(WindowClass::EditorInventionListDrag));
+        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+        auto* wnd = static_cast<InventionDragWindow*>(windowMgr->FindByClass(WindowClass::EditorInventionListDrag));
         if (wnd == nullptr)
         {
             return nullptr;

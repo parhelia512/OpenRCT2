@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,17 +9,19 @@
 
 #ifndef DISABLE_OPENGL
 
-#    include "TextureCache.h"
+    #include "TextureCache.h"
 
-#    include <algorithm>
-#    include <openrct2/drawing/Drawing.h>
-#    include <openrct2/interface/Colour.h>
-#    include <openrct2/util/Util.h>
-#    include <openrct2/world/Location.hpp>
-#    include <stdexcept>
-#    include <vector>
+    #include <algorithm>
+    #include <openrct2/Diagnostic.h>
+    #include <openrct2/core/EnumUtils.hpp>
+    #include <openrct2/drawing/Drawing.h>
+    #include <openrct2/interface/Colour.h>
+    #include <openrct2/world/Location.hpp>
+    #include <stdexcept>
+    #include <vector>
 
 using namespace OpenRCT2::Ui;
+using namespace OpenRCT2::Drawing;
 
 constexpr uint32_t kUnusedIndex = 0xFFFFFFFF;
 
@@ -205,7 +207,7 @@ void TextureCache::CreateTextures()
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
             glTexImage2D(
-                GL_TEXTURE_2D, 0, GL_R8UI, PALETTE_SIZE, PALETTE_SIZE, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, blendArray);
+                GL_TEXTURE_2D, 0, GL_R8UI, kGamePaletteSize, kGamePaletteSize, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, blendArray);
         }
 
         _initialized = true;
@@ -351,9 +353,9 @@ AtlasTextureInfo TextureCache::AllocateImage(int32_t imageWidth, int32_t imageHe
     auto atlasIndex = static_cast<int32_t>(_atlases.size());
     int32_t atlasSize = powf(2, static_cast<float>(Atlas::CalculateImageSizeOrder(imageWidth, imageHeight)));
 
-#    ifdef DEBUG
+    #ifdef DEBUG
     LOG_VERBOSE("new texture atlas #%d (size %d) allocated", atlasIndex, atlasSize);
-#    endif
+    #endif
 
     _atlases.emplace_back(atlasIndex, atlasSize);
     _atlases.back().Initialise(_atlasesTextureDimensions, _atlasesTextureDimensions);

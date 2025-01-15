@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,11 +11,12 @@
 
 #include "../Cheats.h"
 #include "../Context.h"
+#include "../Diagnostic.h"
 #include "../GameState.h"
+#include "../core/EnumUtils.hpp"
 #include "../core/MemoryStream.h"
 #include "../drawing/Drawing.h"
 #include "../interface/Window.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../management/Research.h"
 #include "../object/ObjectManager.h"
@@ -23,7 +24,6 @@
 #include "../ride/RideData.h"
 #include "../ui/UiContext.h"
 #include "../ui/WindowManager.h"
-#include "../util/Util.h"
 #include "../world/Park.h"
 
 using namespace OpenRCT2;
@@ -159,7 +159,7 @@ GameActions::Result RideSetVehicleAction::Execute() const
             }
             uint8_t clampValue = _value;
             static_assert(sizeof(clampValue) == sizeof(ride->proposed_num_cars_per_train));
-            if (!GetGameState().Cheats.DisableTrainLengthLimit)
+            if (!GetGameState().Cheats.disableTrainLengthLimit)
             {
                 clampValue = std::clamp(clampValue, rideEntry->min_cars_in_train, rideEntry->max_cars_in_train);
             }
@@ -182,7 +182,7 @@ GameActions::Result RideSetVehicleAction::Execute() const
             }
 
             RideSetVehicleColoursToRandomPreset(*ride, _colour);
-            if (!GetGameState().Cheats.DisableTrainLengthLimit)
+            if (!GetGameState().Cheats.disableTrainLengthLimit)
             {
                 ride->proposed_num_cars_per_train = std::clamp(
                     ride->proposed_num_cars_per_train, rideEntry->min_cars_in_train, rideEntry->max_cars_in_train);
@@ -225,14 +225,15 @@ GameActions::Result RideSetVehicleAction::Execute() const
 bool RideSetVehicleAction::RideIsVehicleTypeValid(const Ride& ride) const
 {
     bool selectionShouldBeExpanded;
-    int32_t rideTypeIterator, rideTypeIteratorMax;
+    ride_type_t rideTypeIterator, rideTypeIteratorMax;
+    auto& gameState = GetGameState();
 
     {
         const auto& rtd = ride.GetRideTypeDescriptor();
-        if (GetGameState().Cheats.ShowVehiclesFromOtherTrackTypes
+        if (gameState.Cheats.showVehiclesFromOtherTrackTypes
             && !(
-                ride.GetRideTypeDescriptor().HasFlag(RIDE_TYPE_FLAG_FLAT_RIDE) || rtd.HasFlag(RIDE_TYPE_FLAG_IS_MAZE)
-                || ride.type == RIDE_TYPE_MINI_GOLF))
+                ride.GetRideTypeDescriptor().HasFlag(RtdFlag::isFlatRide) || rtd.specialType == RtdSpecialType::maze
+                || rtd.specialType == RtdSpecialType::miniGolf))
         {
             selectionShouldBeExpanded = true;
             rideTypeIterator = 0;
@@ -250,11 +251,11 @@ bool RideSetVehicleAction::RideIsVehicleTypeValid(const Ride& ride) const
     {
         if (selectionShouldBeExpanded)
         {
-            if (GetRideTypeDescriptor(rideTypeIterator).HasFlag(RIDE_TYPE_FLAG_FLAT_RIDE))
+            if (GetRideTypeDescriptor(rideTypeIterator).HasFlag(RtdFlag::isFlatRide))
                 continue;
 
             const auto& rtd = GetRideTypeDescriptor(rideTypeIterator);
-            if (rtd.HasFlag(RIDE_TYPE_FLAG_IS_MAZE) || rideTypeIterator == RIDE_TYPE_MINI_GOLF)
+            if (rtd.specialType == RtdSpecialType::maze || rtd.specialType == RtdSpecialType::miniGolf)
                 continue;
         }
 
@@ -264,7 +265,7 @@ bool RideSetVehicleAction::RideIsVehicleTypeValid(const Ride& ride) const
         {
             if (rideEntryIndex == _value)
             {
-                if (!RideEntryIsInvented(rideEntryIndex) && !GetGameState().Cheats.IgnoreResearchStatus)
+                if (!RideEntryIsInvented(rideEntryIndex) && !gameState.Cheats.ignoreResearchStatus)
                 {
                     return false;
                 }

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,8 +10,14 @@
 #pragma once
 
 #include <cstdint>
+#include <openrct2/localisation/StringIdType.h>
 
 class Formatter;
 struct Objective;
 
-void formatObjective(Formatter& ft, Objective objective);
+namespace OpenRCT2::Ui
+{
+    void formatObjective(Formatter& ft, Objective objective);
+
+    extern const StringId kObjectiveNames[12];
+} // namespace OpenRCT2::Ui

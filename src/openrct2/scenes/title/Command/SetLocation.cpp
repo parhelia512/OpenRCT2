@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,6 +10,7 @@
 #include "SetLocation.h"
 
 #include "../../../OpenRCT2.h"
+#include "../../../interface/Viewport.h"
 #include "../../../interface/Window.h"
 #include "../../../interface/Window_internal.h"
 #include "../../../world/Map.h"

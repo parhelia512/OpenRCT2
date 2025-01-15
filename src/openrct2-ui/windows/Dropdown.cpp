@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -20,7 +20,6 @@
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/localisation/Formatter.h>
 #include <openrct2/localisation/Formatting.h>
-#include <openrct2/localisation/Localisation.h>
 #include <openrct2/sprites.h>
 
 namespace OpenRCT2::Ui::Windows
@@ -146,7 +145,7 @@ namespace OpenRCT2::Ui::Windows
                     {
                         // Image item
                         auto image = UseImages ? _dropdownItemsImages[i]
-                                               : ImageId::FromUInt32(static_cast<uint32_t>(gDropdownItems[i].Args));
+                                               : ImageId(static_cast<uint32_t>(gDropdownItems[i].Args));
                         if (item == Dropdown::FormatColourPicker && highlightedIndex == i)
                             image = image.WithIndexOffset(1);
                         GfxDrawSprite(dpi, image, screenCoords);
@@ -499,8 +498,8 @@ static constexpr colour_t kColoursDropdownOrder[] = {
     {
         int32_t defaultIndex = -1;
 
-        const bool specialColoursEnabled = !alwaysHideSpecialColours && GetGameState().Cheats.AllowSpecialColourSchemes;
-        auto numColours = specialColoursEnabled ? static_cast<uint8_t>(COLOUR_COUNT) : COLOUR_NUM_NORMAL;
+        const bool specialColoursEnabled = !alwaysHideSpecialColours && GetGameState().Cheats.allowSpecialColourSchemes;
+        auto numColours = specialColoursEnabled ? static_cast<uint8_t>(COLOUR_COUNT) : kColourNumNormal;
         // Set items
         for (uint64_t i = 0; i < numColours; i++)
         {
@@ -513,7 +512,7 @@ static constexpr colour_t kColoursDropdownOrder[] = {
                                                                : ImageId(SPR_PALETTE_BTN, orderedColour);
 
             gDropdownItems[i].Format = Dropdown::FormatColourPicker;
-            gDropdownItems[i].Args = (i << 32) | imageId.ToUInt32();
+            Dropdown::SetImage(i, imageId);
         }
 
         // Show dropdown
@@ -537,6 +536,7 @@ static constexpr colour_t kColoursDropdownOrder[] = {
 } // namespace OpenRCT2::Ui::Windows
 
 using namespace OpenRCT2::Ui::Windows;
+using namespace OpenRCT2;
 
 bool Dropdown::IsChecked(int32_t index)
 {

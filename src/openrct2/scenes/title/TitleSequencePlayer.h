@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,17 +9,18 @@
 
 #pragma once
 
-#include "../../common.h"
+#include <cstddef>
+#include <cstdint>
 
 struct ITitleSequencePlayer
 {
     virtual ~ITitleSequencePlayer() = default;
 
-    virtual int32_t GetCurrentPosition() const abstract;
+    virtual int32_t GetCurrentPosition() const = 0;
 
-    virtual bool Begin(size_t titleSequenceId) abstract;
-    virtual void Reset() abstract;
-    virtual bool Update() abstract;
-    virtual void Seek(int32_t position) abstract;
-    virtual void Eject() abstract;
+    virtual bool Begin(size_t titleSequenceId) = 0;
+    virtual void Reset() = 0;
+    virtual bool Update() = 0;
+    virtual void Seek(int32_t position) = 0;
+    virtual void Eject() = 0;
 };

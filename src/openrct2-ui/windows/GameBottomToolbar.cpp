@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -20,55 +20,56 @@
 #include <openrct2/entity/EntityRegistry.h>
 #include <openrct2/entity/Guest.h>
 #include <openrct2/entity/Staff.h>
-#include <openrct2/localisation/Date.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
+#include <openrct2/localisation/Localisation.Date.h>
+#include <openrct2/localisation/StringIds.h>
 #include <openrct2/management/Finance.h>
 #include <openrct2/management/NewsItem.h>
-#include <openrct2/peep/PeepAnimationData.h>
+#include <openrct2/object/ObjectManager.h>
+#include <openrct2/object/PeepAnimationsObject.h>
 #include <openrct2/peep/PeepSpriteIds.h>
 #include <openrct2/sprites.h>
 #include <openrct2/world/Park.h>
 
 namespace OpenRCT2::Ui::Windows
 {
+    enum WindowGameBottomToolbarWidgetIdx
+    {
+        WIDX_LEFT_OUTSET,
+        WIDX_LEFT_INSET,
+        WIDX_MONEY,
+        WIDX_GUESTS,
+        WIDX_PARK_RATING,
+
+        WIDX_MIDDLE_OUTSET,
+        WIDX_MIDDLE_INSET,
+        WIDX_NEWS_SUBJECT,
+        WIDX_NEWS_LOCATE,
+
+        WIDX_RIGHT_OUTSET,
+        WIDX_RIGHT_INSET,
+        WIDX_DATE
+    };
+
     // clang-format off
-enum WindowGameBottomToolbarWidgetIdx
-{
-    WIDX_LEFT_OUTSET,
-    WIDX_LEFT_INSET,
-    WIDX_MONEY,
-    WIDX_GUESTS,
-    WIDX_PARK_RATING,
+    static Widget window_game_bottom_toolbar_widgets[] =
+    {
+        MakeWidget({  0,  0}, {142, 34}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Left outset panel
+        MakeWidget({  2,  2}, {138, 30}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Left inset panel
+        MakeWidget({  2,  1}, {138, 12}, WindowWidgetType::FlatBtn,     WindowColour::Primary , 0xFFFFFFFF, STR_PROFIT_PER_WEEK_AND_PARK_VALUE_TIP), // Money window
+        MakeWidget({  2, 11}, {138, 12}, WindowWidgetType::FlatBtn,     WindowColour::Primary                                                     ), // Guests window
+        MakeWidget({  2, 21}, {138, 11}, WindowWidgetType::FlatBtn,     WindowColour::Primary , 0xFFFFFFFF, STR_PARK_RATING_TIP                   ), // Park rating window
 
-    WIDX_MIDDLE_OUTSET,
-    WIDX_MIDDLE_INSET,
-    WIDX_NEWS_SUBJECT,
-    WIDX_NEWS_LOCATE,
+        MakeWidget({142,  0}, {356, 34}, WindowWidgetType::ImgBtn,      WindowColour::Tertiary                                                    ), // Middle outset panel
+        MakeWidget({144,  2}, {352, 30}, WindowWidgetType::FlatBtn,     WindowColour::Tertiary                                                    ), // Middle inset panel
+        MakeWidget({147,  5}, { 24, 24}, WindowWidgetType::FlatBtn,     WindowColour::Tertiary, 0xFFFFFFFF, STR_SHOW_SUBJECT_TIP                  ), // Associated news item window
+        MakeWidget({469,  5}, { 24, 24}, WindowWidgetType::FlatBtn,     WindowColour::Tertiary, ImageId(SPR_LOCATE), STR_LOCATE_SUBJECT_TIP                ), // Scroll to news item target
 
-    WIDX_RIGHT_OUTSET,
-    WIDX_RIGHT_INSET,
-    WIDX_DATE
-};
-
-static Widget window_game_bottom_toolbar_widgets[] =
-{
-    MakeWidget({  0,  0}, {142, 34}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Left outset panel
-    MakeWidget({  2,  2}, {138, 30}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Left inset panel
-    MakeWidget({  2,  1}, {138, 12}, WindowWidgetType::FlatBtn,     WindowColour::Primary , 0xFFFFFFFF, STR_PROFIT_PER_WEEK_AND_PARK_VALUE_TIP), // Money window
-    MakeWidget({  2, 11}, {138, 12}, WindowWidgetType::FlatBtn,     WindowColour::Primary                                                     ), // Guests window
-    MakeWidget({  2, 21}, {138, 11}, WindowWidgetType::FlatBtn,     WindowColour::Primary , 0xFFFFFFFF, STR_PARK_RATING_TIP                   ), // Park rating window
-
-    MakeWidget({142,  0}, {356, 34}, WindowWidgetType::ImgBtn,      WindowColour::Tertiary                                                    ), // Middle outset panel
-    MakeWidget({144,  2}, {352, 30}, WindowWidgetType::FlatBtn,     WindowColour::Tertiary                                                    ), // Middle inset panel
-    MakeWidget({147,  5}, { 24, 24}, WindowWidgetType::FlatBtn,     WindowColour::Tertiary, 0xFFFFFFFF, STR_SHOW_SUBJECT_TIP                  ), // Associated news item window
-    MakeWidget({469,  5}, { 24, 24}, WindowWidgetType::FlatBtn,     WindowColour::Tertiary, ImageId(SPR_LOCATE), STR_LOCATE_SUBJECT_TIP                ), // Scroll to news item target
-
-    MakeWidget({498,  0}, {142, 34}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Right outset panel
-    MakeWidget({500,  2}, {138, 30}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Right inset panel
-    MakeWidget({500,  2}, {138, 12}, WindowWidgetType::FlatBtn,     WindowColour::Primary                                                     ), // Date
-    kWidgetsEnd,
-};
+        MakeWidget({498,  0}, {142, 34}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Right outset panel
+        MakeWidget({500,  2}, {138, 30}, WindowWidgetType::ImgBtn,      WindowColour::Primary                                                     ), // Right inset panel
+        MakeWidget({500,  2}, {138, 12}, WindowWidgetType::FlatBtn,     WindowColour::Primary                                                     ), // Date
+        kWidgetsEnd,
+    };
     // clang-format on
 
     uint8_t gToolbarDirtyFlags;
@@ -206,7 +207,7 @@ static Widget window_game_bottom_toolbar_widgets[] =
             screenCoords = { windowPos.x + window_game_bottom_toolbar_widgets[WIDX_RIGHT_OUTSET].left + 15,
                              static_cast<int32_t>(screenCoords.y + line_height + 1) };
 
-            int32_t temperature = OpenRCT2::GetGameState().ClimateCurrent.Temperature;
+            int32_t temperature = GetGameState().ClimateCurrent.Temperature;
             StringId format = STR_CELSIUS_VALUE;
             if (Config::Get().general.TemperatureFormat == TemperatureUnit::Fahrenheit)
             {
@@ -219,7 +220,7 @@ static Widget window_game_bottom_toolbar_widgets[] =
             screenCoords.x += 30;
 
             // Current weather
-            auto currentWeatherSpriteId = ClimateGetWeatherSpriteId(OpenRCT2::GetGameState().ClimateCurrent);
+            auto currentWeatherSpriteId = ClimateGetWeatherSpriteId(GetGameState().ClimateCurrent);
             GfxDrawSprite(dpi, ImageId(currentWeatherSpriteId), screenCoords);
 
             // Next weather
@@ -285,7 +286,10 @@ static Widget window_game_bottom_toolbar_widgets[] =
                         clipCoords.y += 3;
                     }
 
-                    uint32_t image_id_base = GetPeepAnimation(peep->SpriteType).base_image;
+                    auto& objManager = GetContext()->GetObjectManager();
+                    auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+                    uint32_t image_id_base = animObj->GetPeepAnimation(peep->AnimationGroup).base_image;
                     image_id_base += frame_no & 0xFFFFFFFC;
                     image_id_base++;
 
@@ -300,7 +304,7 @@ static Widget window_game_bottom_toolbar_widgets[] =
                         {
                             GfxDrawSprite(cliped_dpi, ImageId(image_id_base + 32, guest->BalloonColour), clipCoords);
                         }
-                        if (image_id_base >= kPeepSpriteUmbrellaStateNoneId
+                        if (image_id_base >= kPeepSpriteUmbrellaStateWalkingId
                             && image_id_base < kPeepSpriteUmbrellaStateSittingIdleId + 4)
                         {
                             GfxDrawSprite(cliped_dpi, ImageId(image_id_base + 32, guest->UmbrellaColour), clipCoords);
@@ -359,6 +363,7 @@ static Widget window_game_bottom_toolbar_widgets[] =
             std::memcpy(&stringId, ft.Data(), sizeof(StringId));
             if (stringId == STR_NONE)
             {
+                // TODO: this string probably shouldn't be reused for this
                 DrawTextWrapped(
                     dpi, middleWidgetCoords, panelWidth, STR_TITLE_SEQUENCE_OPENRCT2, ft,
                     { colours[0], TextAlignment::CENTRE });

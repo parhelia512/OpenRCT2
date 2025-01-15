@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -7,10 +7,10 @@
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
 
-#include "../interface/Theme.h"
-
 #include <openrct2-ui/interface/Dropdown.h>
+#include <openrct2-ui/interface/Theme.h>
 #include <openrct2-ui/interface/Viewport.h>
+#include <openrct2-ui/interface/ViewportQuery.h>
 #include <openrct2-ui/interface/Widget.h>
 #include <openrct2-ui/windows/Window.h>
 #include <openrct2/Context.h>
@@ -27,14 +27,19 @@
 #include <openrct2/entity/PatrolArea.h>
 #include <openrct2/entity/Staff.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
 #include <openrct2/management/Finance.h>
 #include <openrct2/network/network.h>
-#include <openrct2/peep/PeepAnimationData.h>
+#include <openrct2/object/ObjectManager.h>
+#include <openrct2/object/PeepAnimationsObject.h>
+#include <openrct2/peep/PeepAnimations.h>
 #include <openrct2/sprites.h>
+#include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/Footpath.h>
 #include <openrct2/world/Park.h>
+
+using namespace OpenRCT2::Numerics;
 
 namespace OpenRCT2::Ui::Windows
 {
@@ -80,37 +85,37 @@ namespace OpenRCT2::Ui::Windows
     validate_global_widx(WC_PEEP, WIDX_PATROL);
     validate_global_widx(WC_STAFF, WIDX_PICKUP);
 
+#define MAIN_STAFF_WIDGETS                                                                                                     \
+    WINDOW_SHIM(WINDOW_TITLE, WW, WH),                                                                                         \
+        MakeWidget({ 0, 43 }, { 190, 137 }, WindowWidgetType::Resize, WindowColour::Secondary), /* Resize */                   \
+        MakeTab({ 3, 17 }, STR_STAFF_OVERVIEW_TIP),                                             /* Tab 1 */                    \
+        MakeTab({ 34, 17 }, STR_STAFF_OPTIONS_TIP),                                             /* Tab 2 */                    \
+        MakeTab({ 65, 17 }, STR_STAFF_STATS_TIP)                                                /* Tab 3 */
+
     // clang-format off
-#define MAIN_STAFF_WIDGETS \
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH), \
-    MakeWidget({ 0, 43}, {190, 137}, WindowWidgetType::Resize, WindowColour::Secondary), /* Resize */ \
-    MakeTab   ({ 3, 17}, STR_STAFF_OVERVIEW_TIP                         ), /* Tab 1 */ \
-    MakeTab   ({34, 17}, STR_STAFF_OPTIONS_TIP                          ), /* Tab 2 */ \
-    MakeTab   ({65, 17}, STR_STAFF_STATS_TIP                            )  /* Tab 3 */
+    static Widget _staffOverviewWidgets[] = {
+        MAIN_STAFF_WIDGETS,
+        MakeWidget     ({      3,      47}, {162, 120}, WindowWidgetType::Viewport,      WindowColour::Secondary                                        ), // Viewport
+        MakeWidget     ({      3, WH - 13}, {162,  11}, WindowWidgetType::LabelCentred, WindowColour::Secondary                                        ), // Label at bottom of viewport
+        MakeWidget     ({WW - 25,      45}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_PICKUP_BTN), STR_PICKUP_TIP        ), // Pickup Button
+        MakeWidget     ({WW - 25,      69}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_PATROL_BTN), STR_SET_PATROL_TIP    ), // Patrol Button
+        MakeWidget     ({WW - 25,      93}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_RENAME),     STR_NAME_STAFF_TIP    ), // Rename Button
+        MakeWidget     ({WW - 25,     117}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_LOCATE),     STR_LOCATE_SUBJECT_TIP), // Locate Button
+        MakeWidget     ({WW - 25,     141}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_DEMOLISH),   STR_FIRE_STAFF_TIP    ), // Fire Button
+        kWidgetsEnd,
+    };
 
-static Widget _staffOverviewWidgets[] = {
-    MAIN_STAFF_WIDGETS,
-    MakeWidget     ({      3,      47}, {162, 120}, WindowWidgetType::Viewport,      WindowColour::Secondary                                        ), // Viewport
-    MakeWidget     ({      3, WH - 13}, {162,  11}, WindowWidgetType::LabelCentred, WindowColour::Secondary                                        ), // Label at bottom of viewport
-    MakeWidget     ({WW - 25,      45}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_PICKUP_BTN), STR_PICKUP_TIP        ), // Pickup Button
-    MakeWidget     ({WW - 25,      69}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_PATROL_BTN), STR_SET_PATROL_TIP    ), // Patrol Button
-    MakeWidget     ({WW - 25,      93}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_RENAME),     STR_NAME_STAFF_TIP    ), // Rename Button
-    MakeWidget     ({WW - 25,     117}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_LOCATE),     STR_LOCATE_SUBJECT_TIP), // Locate Button
-    MakeWidget     ({WW - 25,     141}, { 24,  24}, WindowWidgetType::FlatBtn,       WindowColour::Secondary, ImageId(SPR_DEMOLISH),   STR_FIRE_STAFF_TIP    ), // Fire Button
-    kWidgetsEnd,
-};
-
-//0x9AF910
-static Widget _staffOptionsWidgets[] = {
-    MAIN_STAFF_WIDGETS,
-    MakeWidget     ({      5,  50}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 1
-    MakeWidget     ({      5,  67}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 2
-    MakeWidget     ({      5,  84}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 3
-    MakeWidget     ({      5, 101}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 4
-    MakeWidget     ({      5,  50}, {180,  12}, WindowWidgetType::DropdownMenu, WindowColour::Secondary                                            ), // Costume Dropdown
-    MakeWidget     ({WW - 17,  51}, { 11,  10}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH, STR_SELECT_COSTUME_TIP), // Costume Dropdown Button
-    kWidgetsEnd,
-};
+    //0x9AF910
+    static Widget _staffOptionsWidgets[] = {
+        MAIN_STAFF_WIDGETS,
+        MakeWidget     ({      5,  50}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 1
+        MakeWidget     ({      5,  67}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 2
+        MakeWidget     ({      5,  84}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 3
+        MakeWidget     ({      5, 101}, {180,  12}, WindowWidgetType::Checkbox, WindowColour::Secondary                                            ), // Checkbox 4
+        MakeWidget     ({      5,  50}, {180,  12}, WindowWidgetType::DropdownMenu, WindowColour::Secondary                                            ), // Costume Dropdown
+        MakeWidget     ({WW - 17,  51}, { 11,  10}, WindowWidgetType::Button,   WindowColour::Secondary, STR_DROPDOWN_GLYPH, STR_SELECT_COSTUME_TIP), // Costume Dropdown Button
+        kWidgetsEnd,
+    };
     // clang-format on
 
     // 0x9AF9F4
@@ -128,14 +133,17 @@ static Widget _staffOptionsWidgets[] = {
     class StaffWindow final : public Window
     {
     private:
-        EntertainerCostume _availableCostumes[EnumValue(EntertainerCostume::Count)]{};
+        std::vector<AvailableCostume> _availableCostumes;
         uint16_t _tabAnimationOffset = 0;
-        int32_t _pickedPeepOldX = LOCATION_NULL;
+        int32_t _pickedPeepOldX = kLocationNull;
 
     public:
         void Initialise(EntityId entityId)
         {
             number = entityId.ToUnderlying();
+
+            if (GetStaff()->AssignedStaffType == StaffType::Entertainer)
+                _availableCostumes = getAvailableCostumeStrings(AnimationPeepType::Entertainer);
         }
 
         void OnOpen() override
@@ -146,6 +154,12 @@ static Widget _staffOptionsWidgets[] = {
         void OnClose() override
         {
             CancelTools();
+        }
+
+        void OnLanguageChange() override
+        {
+            if (GetStaff()->AssignedStaffType == StaffType::Entertainer)
+                _availableCostumes = getAvailableCostumeStrings(AnimationPeepType::Entertainer);
         }
 
         void OnMouseUp(WidgetIndex widgetIndex) override
@@ -374,7 +388,9 @@ static Widget _staffOptionsWidgets[] = {
                     pickupAction.SetCallback([peepnum = number](const GameAction* ga, const GameActions::Result* result) {
                         if (result->Error != GameActions::Status::Ok)
                             return;
-                        WindowBase* wind = WindowFindByNumber(WindowClass::Peep, peepnum);
+
+                        auto* windowMgr = GetContext()->GetUiContext()->GetWindowManager();
+                        WindowBase* wind = windowMgr->FindByNumber(WindowClass::Peep, peepnum);
                         if (wind != nullptr)
                         {
                             ToolSet(*wind, WC_STAFF__WIDX_PICKUP, Tool::Picker);
@@ -575,17 +591,15 @@ static Widget _staffOptionsWidgets[] = {
             if (staff->Is<Staff>() && staff->AssignedStaffType == StaffType::Entertainer)
                 screenCoords.y++;
 
-            int32_t imageIndex = GetPeepAnimation(staff->SpriteType).base_image + 1;
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(staff->AnimationObjectIndex);
 
-            int32_t offset = 0;
-
+            const auto& anim = animObj->GetPeepAnimation(staff->AnimationGroup);
+            int32_t animFrame = 0;
             if (page == WINDOW_STAFF_OVERVIEW)
-            {
-                offset = _tabAnimationOffset;
-                offset = Floor2(offset, 4);
-            }
-            imageIndex += offset;
+                animFrame = _tabAnimationOffset / 4;
 
+            auto imageIndex = anim.base_image + 1 + anim.frame_offsets[animFrame] * 4;
             GfxDrawSprite(clip_dpi, ImageId(imageIndex, staff->TshirtColour, staff->TrousersColour), screenCoords);
         }
 
@@ -627,8 +641,6 @@ static Widget _staffOptionsWidgets[] = {
                 {
                     viewport->width = newWidth;
                     viewport->height = newHeight;
-                    viewport->view_width = viewport->zoom.ApplyTo(newWidth);
-                    viewport->view_height = viewport->zoom.ApplyTo(newHeight);
                 }
             }
 
@@ -637,12 +649,25 @@ static Widget _staffOptionsWidgets[] = {
 
         void OverviewUpdate()
         {
-            _tabAnimationOffset++;
-            _tabAnimationOffset %= 24;
+            auto* staff = GetStaff();
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(staff->AnimationObjectIndex);
 
-            // Update pickup animation, can only happen in this tab.
+            // Get walking animation length
+            const auto& walkingAnim = animObj->GetPeepAnimation(staff->AnimationGroup, PeepAnimationType::Walking);
+            const auto walkingAnimLength = walkingAnim.frame_offsets.size();
+
+            // Overview tab animation offset
+            _tabAnimationOffset++;
+            _tabAnimationOffset %= walkingAnimLength * 4;
+
+            // Get pickup animation length
+            const auto& pickAnim = animObj->GetPeepAnimation(staff->AnimationGroup, PeepAnimationType::Hanging);
+            const auto pickAnimLength = pickAnim.frame_offsets.size();
+
+            // Update pickup animation frame
             picked_peep_frame++;
-            picked_peep_frame %= 48;
+            picked_peep_frame %= pickAnimLength * 4;
 
             InvalidateWidget(WIDX_TAB_1);
         }
@@ -669,7 +694,7 @@ static Widget _staffOptionsWidgets[] = {
             gPickupPeepImage = ImageId();
 
             auto info = GetMapCoordinatesFromPos(screenCoords, ViewportInteractionItemAll);
-            if (info.SpriteType == ViewportInteractionItem::None)
+            if (info.interactionType == ViewportInteractionItem::None)
                 return;
 
             gPickupPeepX = screenCoords.x - 1;
@@ -681,8 +706,11 @@ static Widget _staffOptionsWidgets[] = {
                 return;
             }
 
-            auto baseImageId = GetPeepAnimation(staff->SpriteType, PeepActionSpriteType::Ui).base_image;
-            baseImageId += picked_peep_frame >> 2;
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(staff->AnimationObjectIndex);
+
+            auto& pickupAnim = animObj->GetPeepAnimation(staff->AnimationGroup, PeepAnimationType::Hanging);
+            auto baseImageId = pickupAnim.base_image + pickupAnim.frame_offsets[picked_peep_frame >> 2];
             gPickupPeepImage = ImageId(baseImageId, staff->TshirtColour, staff->TrousersColour);
         }
 
@@ -769,19 +797,18 @@ static Widget _staffOptionsWidgets[] = {
             }
 
             int32_t checkedIndex = -1;
-            // This will be moved below where Items Checked is when all
-            // of dropdown related functions are finished. This prevents
-            // the dropdown from not working on first click.
-            int32_t numCostumes = StaffGetAvailableEntertainerCostumeList(_availableCostumes);
-            for (int32_t i = 0; i < numCostumes; i++)
+            auto numCostumes = _availableCostumes.size();
+            for (auto i = 0u; i < numCostumes; i++)
             {
-                EntertainerCostume costume = _availableCostumes[i];
-                if (staff->SpriteType == EntertainerCostumeToSprite(costume))
-                {
+                // TODO: rework interface to dropdown arguments so memcpy won't be needed
+                auto* nameStr = _availableCostumes[i].friendlyName.c_str();
+                std::memcpy(&gDropdownItems[i].Args, &nameStr, sizeof(const char*));
+                gDropdownItems[i].Format = STR_OPTIONS_DROPDOWN_ITEM;
+
+                // Remember what item to check for the end of this event function
+                auto costumeIndex = _availableCostumes[i].index;
+                if (staff->AnimationObjectIndex == costumeIndex)
                     checkedIndex = i;
-                }
-                gDropdownItems[i].Args = StaffCostumeNames[EnumValue(costume)];
-                gDropdownItems[i].Format = STR_DROPDOWN_MENU_LABEL;
             }
 
             auto ddPos = ScreenCoordsXY{ ddWidget->left + windowPos.x, ddWidget->top + windowPos.y };
@@ -789,11 +816,9 @@ static Widget _staffOptionsWidgets[] = {
             int32_t ddWidth = ddWidget->width() - 3;
             WindowDropdownShowTextCustomWidth(ddPos, ddHeight, colours[1], 0, Dropdown::Flag::StayOpen, numCostumes, ddWidth);
 
-            // See above note.
+            // Set selection
             if (checkedIndex != -1)
-            {
                 Dropdown::SetChecked(checkedIndex, true);
-            }
         }
 
         void OptionsOnDropdown(WidgetIndex widgetIndex, int32_t dropdownIndex)
@@ -806,7 +831,7 @@ static Widget _staffOptionsWidgets[] = {
             if (dropdownIndex == -1)
                 return;
 
-            EntertainerCostume costume = _availableCostumes[dropdownIndex];
+            ObjectEntryIndex costume = _availableCostumes[dropdownIndex].index;
             auto staffSetCostumeAction = StaffSetCostumeAction(EntityId::FromUnderlying(number), costume);
             GameActions::Execute(&staffSetCostumeAction);
         }
@@ -830,12 +855,23 @@ static Widget _staffOptionsWidgets[] = {
                     widgets[WIDX_COSTUME_BOX].type = WindowWidgetType::DropdownMenu;
                     widgets[WIDX_COSTUME_BTN].type = WindowWidgetType::Button;
 
-                    // TODO: retrieve string from object instead
-                    auto costumeType = EnumValue(staff->SpriteType) - EnumValue(PeepSpriteType::EntertainerPanda);
-                    if (costumeType >= 0)
-                        widgets[WIDX_COSTUME_BOX].text = StaffCostumeNames[costumeType];
+                    auto pos = std::find_if(_availableCostumes.begin(), _availableCostumes.end(), [staff](auto costume) {
+                        return costume.index == staff->AnimationObjectIndex;
+                    });
+
+                    if (pos != _availableCostumes.end())
+                    {
+                        auto index = std::distance(_availableCostumes.begin(), pos);
+                        auto name = _availableCostumes[index].friendlyName.c_str();
+                        widgets[WIDX_COSTUME_BOX].string = const_cast<utf8*>(name);
+                        widgets[WIDX_COSTUME_BOX].flags |= WIDGET_FLAGS::TEXT_IS_STRING;
+                    }
                     else
-                        widgets[WIDX_COSTUME_BOX].text = STR_UNKNOWN_OBJECT_TYPE;
+                    {
+                        widgets[WIDX_COSTUME_BOX].text = STR_EMPTY;
+                        widgets[WIDX_COSTUME_BOX].flags &= ~WIDGET_FLAGS::TEXT_IS_STRING;
+                    }
+
                     break;
                 }
                 case StaffType::Handyman:
@@ -884,9 +920,8 @@ static Widget _staffOptionsWidgets[] = {
                 return;
             }
 
-            auto staffOrders = staff->StaffOrders;
-
-            for (auto index = UtilBitScanForward(staffOrders); index != -1; index = UtilBitScanForward(staffOrders))
+            uint32_t staffOrders = staff->StaffOrders;
+            for (auto index = Numerics::bitScanForward(staffOrders); index != -1; index = Numerics::bitScanForward(staffOrders))
             {
                 staffOrders &= ~(1 << index);
                 SetCheckboxValue(WIDX_CHECKBOX_1 + index, true);
@@ -1078,11 +1113,8 @@ static Widget _staffOptionsWidgets[] = {
 
         void CancelTools()
         {
-            if (InputTestFlag(INPUT_FLAG_TOOL_ACTIVE))
-            {
-                if (number == gCurrentToolWidget.window_number && classification == gCurrentToolWidget.window_classification)
-                    ToolCancel();
-            }
+            if (isToolActive(classification, number))
+                ToolCancel();
         }
 
         void SetPage(int32_t pageNum)

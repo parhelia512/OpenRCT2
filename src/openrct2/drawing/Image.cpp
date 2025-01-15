@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,6 +9,7 @@
 
 #include "Image.h"
 
+#include "../Diagnostic.h"
 #include "../OpenRCT2.h"
 #include "../core/Console.hpp"
 #include "../core/Guard.hpp"
@@ -17,6 +18,8 @@
 
 #include <algorithm>
 #include <list>
+
+using namespace OpenRCT2;
 
 constexpr uint32_t BASE_IMAGE_ID = SPR_IMAGE_LIST_BEGIN;
 constexpr uint32_t MAX_IMAGES = SPR_IMAGE_LIST_END - BASE_IMAGE_ID;
@@ -28,11 +31,11 @@ static uint32_t _allocatedImageCount;
 #ifdef DEBUG_LEVEL_1
 static std::list<ImageList> _allocatedLists;
 
-// MSVC's compiler doesn't support the [[maybe_unused]] attribute for unused static functions. Until this has been resolved, we
-// need to explicitly tell the compiler to temporarily disable the warning.
-// See discussion at https://github.com/OpenRCT2/OpenRCT2/pull/7617
-#    pragma warning(push)
-#    pragma warning(disable : 4505) // unreferenced local function has been removed
+    // MSVC's compiler doesn't support the [[maybe_unused]] attribute for unused static functions. Until this has been resolved,
+    // we need to explicitly tell the compiler to temporarily disable the warning. See discussion at
+    // https://github.com/OpenRCT2/OpenRCT2/pull/7617
+    #pragma warning(push)
+    #pragma warning(disable : 4505) // unreferenced local function has been removed
 
 [[maybe_unused]] static bool AllocatedListContains(uint32_t baseImageId, uint32_t count)
 {
@@ -43,7 +46,7 @@ static std::list<ImageList> _allocatedLists;
     return contains;
 }
 
-#    pragma warning(pop)
+    #pragma warning(pop)
 
 static bool AllocatedListRemove(uint32_t baseImageId, uint32_t count)
 {

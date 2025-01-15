@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -7,9 +7,11 @@
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
 
+#include <SDL_keycode.h>
 #include <ctime>
 #include <iterator>
 #include <memory>
+#include <openrct2-ui/interface/Dropdown.h>
 #include <openrct2-ui/interface/Widget.h>
 #include <openrct2-ui/windows/Window.h>
 #include <openrct2/Context.h>
@@ -26,16 +28,16 @@
 #include <openrct2/core/Guard.hpp>
 #include <openrct2/core/Path.hpp>
 #include <openrct2/core/String.hpp>
+#include <openrct2/drawing/Drawing.h>
 #include <openrct2/localisation/Formatter.h>
-#include <openrct2/localisation/Localisation.h>
 #include <openrct2/network/network.h>
 #include <openrct2/platform/Platform.h>
 #include <openrct2/rct2/T6Exporter.h>
 #include <openrct2/ride/TrackDesign.h>
 #include <openrct2/scenario/Scenario.h>
 #include <openrct2/scenes/title/TitleScene.h>
+#include <openrct2/sprites.h>
 #include <openrct2/ui/UiContext.h>
-#include <openrct2/util/Util.h>
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/Park.h>
 #include <string>
@@ -45,11 +47,14 @@ namespace OpenRCT2::Ui::Windows
 {
 #pragma region Widgets
 
-    static constexpr StringId WINDOW_TITLE = STR_NONE;
-    static constexpr int32_t WW = 350;
-    static constexpr int32_t WH = 400;
+    static constexpr ScreenSize kWindowSizeInit = { 400, 350 };
+    static constexpr ScreenSize kWindowSizeMin = kWindowSizeInit / 2;
+    static constexpr ScreenSize kWindowSizeMax = kWindowSizeInit * 2;
 
-    static constexpr uint16_t DATE_TIME_GAP = 2;
+    static constexpr int kKibiByte = 1024;
+    static constexpr int kMebiByte = kKibiByte * 1024;
+
+    static constexpr uint16_t kDateTimeGap = 2;
 
     enum
     {
@@ -62,36 +67,47 @@ namespace OpenRCT2::Ui::Windows
         WIDX_NEW_FOLDER,
         WIDX_NEW_FILE,
         WIDX_SORT_NAME,
+        WIDX_SORT_SIZE,
         WIDX_SORT_DATE,
+        WIDX_SORT_CUSTOMISE,
         WIDX_SCROLL,
+        WIDX_FILENAME_TEXTBOX,
+        WIDX_SAVE,
         WIDX_BROWSE,
     };
 
+    static constexpr int16_t WW = kWindowSizeInit.width;
+    static constexpr int16_t WH = kWindowSizeInit.height;
+
     // clang-format off
-static Widget window_loadsave_widgets[] =
-{
-    WINDOW_SHIM(WINDOW_TITLE, WW, WH),
-    MakeWidget({               0,  WH - 1}, { WW,   1}, WindowWidgetType::Resize,      WindowColour::Secondary                                                             ), // WIDX_RESIZE
-    MakeWidget({               4,      36}, { 84,  14}, WindowWidgetType::Button,      WindowColour::Primary,   STR_LOADSAVE_DEFAULT,              STR_LOADSAVE_DEFAULT_TIP), // WIDX_DEFAULT
-    MakeWidget({              88,      36}, { 84,  14}, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_ACTION_UP                                  ), // WIDX_UP
-    MakeWidget({             172,      36}, { 87,  14}, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_ACTION_NEW_FOLDER                          ), // WIDX_NEW_FOLDER
-    MakeWidget({             259,      36}, { 87,  14}, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_ACTION_NEW_FILE                            ), // WIDX_NEW_FILE
-    MakeWidget({               4,      55}, {170,  14}, WindowWidgetType::TableHeader, WindowColour::Primary                                                               ), // WIDX_SORT_NAME
-    MakeWidget({(WW - 5) / 2 + 1,      55}, {170,  14}, WindowWidgetType::TableHeader, WindowColour::Primary                                                               ), // WIDX_SORT_DATE
-    MakeWidget({               4,      68}, {342, 303}, WindowWidgetType::Scroll,      WindowColour::Primary,   SCROLL_VERTICAL                                            ), // WIDX_SCROLL
-    MakeWidget({               4, WH - 24}, {197,  19}, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_USE_SYSTEM_WINDOW                          ), // WIDX_BROWSE
-    kWidgetsEnd,
-};
+    static Widget window_loadsave_widgets[] =
+    {
+        WINDOW_SHIM(STR_NONE, WW, WH),
+        MakeWidget({                0,      15 }, {       WW,  WH - 15 }, WindowWidgetType::Resize,      WindowColour::Secondary                                                             ), // WIDX_RESIZE
+        MakeWidget({                4,      36 }, {       84,       14 }, WindowWidgetType::Button,      WindowColour::Primary,   STR_LOADSAVE_DEFAULT,              STR_LOADSAVE_DEFAULT_TIP), // WIDX_DEFAULT
+        MakeWidget({               88,      36 }, {       84,       14 }, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_ACTION_UP                                  ), // WIDX_UP
+        MakeWidget({              172,      36 }, {       87,       14 }, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_ACTION_NEW_FOLDER                          ), // WIDX_NEW_FOLDER
+        MakeWidget({              259,      36 }, {       87,       14 }, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_ACTION_NEW_FILE                            ), // WIDX_NEW_FILE
+        MakeWidget({                4,      55 }, {      160,       14 }, WindowWidgetType::TableHeader, WindowColour::Primary                                                               ), // WIDX_SORT_NAME
+        MakeWidget({ (WW - 5) / 3 + 1,      55 }, {      160,       14 }, WindowWidgetType::TableHeader, WindowColour::Primary                                                               ), // WIDX_SORT_SIZE
+        MakeWidget({ (WW - 5) / 3 + 1,      55 }, {      160,       14 }, WindowWidgetType::TableHeader, WindowColour::Primary                                                               ), // WIDX_SORT_DATE
+        MakeWidget({        (WW - 19),      55 }, {       14,       14 }, WindowWidgetType::Button,      WindowColour::Primary,   STR_DROPDOWN_GLYPH                                         ), // WIDX_SORT_CUSTOMISE
+        MakeWidget({                4,      68 }, {      342,      303 }, WindowWidgetType::Scroll,      WindowColour::Primary,   SCROLL_VERTICAL                                            ), // WIDX_SCROLL
+        MakeWidget({               64, WH - 50 }, { WW - 133,       14 }, WindowWidgetType::TextBox,     WindowColour::Secondary                                                             ), // WIDX_FILENAME_TEXTBOX
+        MakeWidget({          WW - 65, WH - 50 }, {       60,       14 }, WindowWidgetType::Button,      WindowColour::Secondary, STR_FILEBROWSER_SAVE_BUTTON                                ), // WIDX_SAVE
+        MakeWidget({                4, WH - 24 }, {      197,       19 }, WindowWidgetType::Button,      WindowColour::Primary,   STR_FILEBROWSER_USE_SYSTEM_WINDOW                          ), // WIDX_BROWSE
+        kWidgetsEnd,
+    };
     // clang-format on
 
 #pragma endregion
 
     static WindowBase* WindowOverwritePromptOpen(const std::string_view name, const std::string_view path);
 
-    enum
+    enum class FileType : uint8_t
     {
-        TYPE_DIRECTORY,
-        TYPE_FILE,
+        directory,
+        file,
     };
 
     struct LoadSaveListItem
@@ -101,7 +117,10 @@ static Widget window_loadsave_widgets[] =
         time_t date_modified{ 0 };
         std::string date_formatted{};
         std::string time_formatted{};
-        uint8_t type{ 0 };
+        uint64_t fileSizeBytes;
+        uint64_t fileSizeFormatted;
+        StringId fileSizeUnit;
+        FileType type{};
         bool loaded{ false };
     };
 
@@ -111,6 +130,7 @@ static Widget window_loadsave_widgets[] =
     static std::vector<LoadSaveListItem> _listItems;
     static char _directory[MAX_PATH];
     static char _parentDirectory[MAX_PATH];
+    static char _currentFilename[MAX_PATH];
     static u8string _extensionPattern;
     static u8string _defaultPath;
     static int32_t _type;
@@ -118,20 +138,24 @@ static Widget window_loadsave_widgets[] =
     static bool ListItemSort(LoadSaveListItem& a, LoadSaveListItem& b)
     {
         if (a.type != b.type)
-            return a.type - b.type < 0;
+            return EnumValue(a.type) - EnumValue(b.type) < 0;
 
         switch (Config::Get().general.LoadSaveSort)
         {
-            case Sort::NameAscending:
-                return StrLogicalCmp(a.name.c_str(), b.name.c_str()) < 0;
-            case Sort::NameDescending:
-                return -StrLogicalCmp(a.name.c_str(), b.name.c_str()) < 0;
-            case Sort::DateDescending:
+            case FileBrowserSort::NameAscending:
+                return String::logicalCmp(a.name.c_str(), b.name.c_str()) < 0;
+            case FileBrowserSort::NameDescending:
+                return -String::logicalCmp(a.name.c_str(), b.name.c_str()) < 0;
+            case FileBrowserSort::DateDescending:
                 return -difftime(a.date_modified, b.date_modified) < 0;
-            case Sort::DateAscending:
+            case FileBrowserSort::DateAscending:
                 return difftime(a.date_modified, b.date_modified) < 0;
+            case FileBrowserSort::SizeDescending:
+                return a.fileSizeBytes - b.fileSizeBytes;
+            case FileBrowserSort::SizeAscending:
+                return b.fileSizeBytes - a.fileSizeBytes;
         }
-        return StrLogicalCmp(a.name.c_str(), b.name.c_str()) < 0;
+        return String::logicalCmp(a.name.c_str(), b.name.c_str()) < 0;
     }
 
     static void SetAndSaveConfigPath(u8string& config_str, u8string_view path)
@@ -266,7 +290,12 @@ static Widget window_loadsave_widgets[] =
         }
 
         char pathBuffer[MAX_PATH];
-        SafeStrCpy(pathBuffer, path, sizeof(pathBuffer));
+        String::safeUtf8Copy(pathBuffer, path, sizeof(pathBuffer));
+
+        // Closing this will cause a Ride window to pop up, so we have to do this to ensure that
+        // no windows are open (besides the toolbars and LoadSave window).
+        WindowCloseByClass(WindowClass::RideConstruction);
+        WindowCloseAllExceptClass(WindowClass::Loadsave);
 
         auto& gameState = GetGameState();
 
@@ -327,7 +356,7 @@ static Widget window_loadsave_widgets[] =
 
             case (LOADSAVETYPE_SAVE | LOADSAVETYPE_LANDSCAPE):
                 SetAndSaveConfigPath(Config::Get().general.LastSaveLandscapeDirectory, pathBuffer);
-                gScenarioFileName = std::string(String::ToStringView(pathBuffer, std::size(pathBuffer)));
+                gameState.ScenarioFileName = std::string(String::toStringView(pathBuffer, std::size(pathBuffer)));
                 if (ScenarioSave(gameState, pathBuffer, Config::Get().general.SavePluginData ? 3 : 2))
                 {
                     gCurrentLoadedPath = pathBuffer;
@@ -348,7 +377,7 @@ static Widget window_loadsave_widgets[] =
                 int32_t parkFlagsBackup = gameState.Park.Flags;
                 gameState.Park.Flags &= ~PARK_FLAGS_SPRITES_INITIALISED;
                 gameState.EditorStep = EditorStep::Invalid;
-                gScenarioFileName = std::string(String::ToStringView(pathBuffer, std::size(pathBuffer)));
+                gameState.ScenarioFileName = std::string(String::toStringView(pathBuffer, std::size(pathBuffer)));
                 int32_t success = ScenarioSave(gameState, pathBuffer, Config::Get().general.SavePluginData ? 3 : 2);
                 gameState.Park.Flags = parkFlagsBackup;
 
@@ -385,9 +414,9 @@ static Widget window_loadsave_widgets[] =
                 SetAndSaveConfigPath(Config::Get().general.LastSaveTrackDirectory, pathBuffer);
 
                 const auto withExtension = Path::WithExtension(pathBuffer, ".td6");
-                String::Set(pathBuffer, sizeof(pathBuffer), withExtension.c_str());
+                String::set(pathBuffer, sizeof(pathBuffer), withExtension.c_str());
 
-                RCT2::T6Exporter t6Export{ _trackDesign };
+                RCT2::T6Exporter t6Export{ *_trackDesign };
 
                 auto success = t6Export.SaveTrack(pathBuffer);
 
@@ -462,7 +491,7 @@ static Widget window_loadsave_widgets[] =
             }
             else
             {
-                auto buffer = OpenRCT2::GetGameState().Park.Name;
+                auto buffer = GetGameState().Park.Name;
                 if (buffer.empty())
                 {
                     buffer = LanguageGetString(STR_UNNAMED_PARK);
@@ -495,18 +524,18 @@ static Widget window_loadsave_widgets[] =
         int32_t type;
 
     public:
-        void PopulateList(int32_t includeNewItem, const u8string& directory, std::string_view extensionPattern)
+        void PopulateList(bool includeNewItem, const u8string& directory, std::string_view extensionPattern)
         {
             const auto absoluteDirectory = Path::GetAbsolute(directory);
-            SafeStrCpy(_directory, absoluteDirectory.c_str(), std::size(_directory));
+            String::safeUtf8Copy(_directory, absoluteDirectory.c_str(), std::size(_directory));
             // Note: This compares the pointers, not values
             _extensionPattern = extensionPattern;
 
             _listItems.clear();
 
             // Show "new" buttons when saving
-            window_loadsave_widgets[WIDX_NEW_FILE].type = includeNewItem ? WindowWidgetType::Button : WindowWidgetType::Empty;
-            window_loadsave_widgets[WIDX_NEW_FOLDER].type = includeNewItem ? WindowWidgetType::Button : WindowWidgetType::Empty;
+            widgets[WIDX_NEW_FILE].type = includeNewItem ? WindowWidgetType::Button : WindowWidgetType::Empty;
+            widgets[WIDX_NEW_FOLDER].type = includeNewItem ? WindowWidgetType::Button : WindowWidgetType::Empty;
 
             int32_t drives = Platform::GetDrives();
             if (directory.empty() && drives)
@@ -522,7 +551,7 @@ static Widget window_loadsave_widgets[] =
                         LoadSaveListItem newListItem;
                         newListItem.path = std::string(1, 'A' + x) + ":" PATH_SEPARATOR;
                         newListItem.name = newListItem.path;
-                        newListItem.type = TYPE_DIRECTORY;
+                        newListItem.type = FileType::directory;
 
                         _listItems.push_back(std::move(newListItem));
                     }
@@ -531,7 +560,7 @@ static Widget window_loadsave_widgets[] =
             else
             {
                 // Remove the separator at the end of the path, if present
-                SafeStrCpy(_parentDirectory, absoluteDirectory.c_str(), std::size(_parentDirectory));
+                String::safeUtf8Copy(_parentDirectory, absoluteDirectory.c_str(), std::size(_parentDirectory));
                 if (_parentDirectory[strlen(_parentDirectory) - 1] == *PATH_SEPARATOR
                     || _parentDirectory[strlen(_parentDirectory) - 1] == '/')
                     _parentDirectory[strlen(_parentDirectory) - 1] = '\0';
@@ -556,7 +585,7 @@ static Widget window_loadsave_widgets[] =
                 }
 
                 // Disable the Up button if the current directory is the root directory
-                if (String::IsNullOrEmpty(_parentDirectory) && !drives)
+                if (String::isNullOrEmpty(_parentDirectory) && !drives)
                     disabled_widgets |= (1uLL << WIDX_UP);
                 else
                     disabled_widgets &= ~(1uLL << WIDX_UP);
@@ -574,7 +603,7 @@ static Widget window_loadsave_widgets[] =
                     LoadSaveListItem newListItem;
                     newListItem.path = Path::Combine(absoluteDirectory, subDir);
                     newListItem.name = std::move(subDir);
-                    newListItem.type = TYPE_DIRECTORY;
+                    newListItem.type = FileType::directory;
                     newListItem.loaded = false;
 
                     _listItems.push_back(std::move(newListItem));
@@ -582,7 +611,7 @@ static Widget window_loadsave_widgets[] =
 
                 // List all files with the wanted extensions
                 bool showExtension = false;
-                for (const u8string& extToken : String::Split(extensionPattern, ";"))
+                for (const u8string& extToken : String::split(extensionPattern, ";"))
                 {
                     const u8string filter = Path::Combine(directory, extToken);
                     auto scanner = Path::ScanDirectory(filter, false);
@@ -590,12 +619,30 @@ static Widget window_loadsave_widgets[] =
                     {
                         LoadSaveListItem newListItem;
                         newListItem.path = scanner->GetPath();
-                        newListItem.type = TYPE_FILE;
+                        newListItem.type = FileType::file;
                         newListItem.date_modified = Platform::FileGetModifiedTime(newListItem.path.c_str());
 
                         // Cache a human-readable version of the modified date.
                         newListItem.date_formatted = Platform::FormatShortDate(newListItem.date_modified);
                         newListItem.time_formatted = Platform::FormatTime(newListItem.date_modified);
+
+                        // File size
+                        newListItem.fileSizeBytes = Platform::GetFileSize(newListItem.path.c_str());
+                        if (newListItem.fileSizeBytes > kMebiByte)
+                        {
+                            newListItem.fileSizeFormatted = newListItem.fileSizeBytes / kMebiByte;
+                            newListItem.fileSizeUnit = STR_SIZE_MEGABYTE;
+                        }
+                        else if (newListItem.fileSizeBytes > kKibiByte)
+                        {
+                            newListItem.fileSizeFormatted = newListItem.fileSizeBytes / kKibiByte;
+                            newListItem.fileSizeUnit = STR_SIZE_KILOBYTE;
+                        }
+                        else
+                        {
+                            newListItem.fileSizeFormatted = newListItem.fileSizeBytes;
+                            newListItem.fileSizeUnit = STR_SIZE_BYTE;
+                        }
 
                         // Mark if file is the currently loaded game
                         newListItem.loaded = newListItem.path.compare(gCurrentLoadedPath) == 0;
@@ -640,7 +687,7 @@ static Widget window_loadsave_widgets[] =
 
             // Check how this date is represented (e.g. 2000-02-20, or 00/02/20)
             std::string date = Platform::FormatShortDate(long_time);
-            maxDateWidth = GfxGetStringWidth(date.c_str(), FontStyle::Medium) + DATE_TIME_GAP;
+            maxDateWidth = GfxGetStringWidth(date.c_str(), FontStyle::Medium) + kDateTimeGap;
 
             // Some locales do not use leading zeros for months and days, so let's try October, too.
             tm.tm_mon = 10;
@@ -649,12 +696,12 @@ static Widget window_loadsave_widgets[] =
 
             // Again, check how this date is represented (e.g. 2000-10-20, or 00/10/20)
             date = Platform::FormatShortDate(long_time);
-            maxDateWidth = std::max(maxDateWidth, GfxGetStringWidth(date.c_str(), FontStyle::Medium) + DATE_TIME_GAP);
+            maxDateWidth = std::max(maxDateWidth, GfxGetStringWidth(date.c_str(), FontStyle::Medium) + kDateTimeGap);
 
             // Time appears to be universally represented with two digits for minutes, so 12:00 or 00:00 should be
             // representable.
             std::string time = Platform::FormatTime(long_time);
-            maxTimeWidth = GfxGetStringWidth(time.c_str(), FontStyle::Medium) + DATE_TIME_GAP;
+            maxTimeWidth = GfxGetStringWidth(time.c_str(), FontStyle::Medium) + kDateTimeGap;
         }
 
         void SortList()
@@ -672,7 +719,7 @@ static Widget window_loadsave_widgets[] =
             if (!uiContext->HasFilePicker())
             {
                 disabled_widgets |= (1uLL << WIDX_BROWSE);
-                window_loadsave_widgets[WIDX_BROWSE].type = WindowWidgetType::Empty;
+                widgets[WIDX_BROWSE].type = WindowWidgetType::Empty;
             }
 
             // TODO: Split LOADSAVETYPE_* into two proper enum classes (one for load/save, the other for the type)
@@ -686,23 +733,45 @@ static Widget window_loadsave_widgets[] =
                 Audio::StopAll();
             }
 
+            if (isSave)
+            {
+                widgets[WIDX_FILENAME_TEXTBOX].type = WindowWidgetType::TextBox;
+                widgets[WIDX_FILENAME_TEXTBOX].string = _currentFilename;
+                widgets[WIDX_SAVE].type = WindowWidgetType::Button;
+
+                // Set current filename
+                String::set(_currentFilename, sizeof(_currentFilename), _defaultPath.c_str());
+
+                // Focus textbox
+                WindowStartTextbox(*this, WIDX_FILENAME_TEXTBOX, _currentFilename, sizeof(_currentFilename));
+            }
+            else
+            {
+                widgets[WIDX_FILENAME_TEXTBOX].type = WindowWidgetType::Empty;
+                widgets[WIDX_SAVE].type = WindowWidgetType::Empty;
+            }
+
+            // Populate file list
             const char* pattern = GetFilterPatternByType(type, isSave);
             PopulateList(isSave, path, pattern);
             no_list_items = static_cast<uint16_t>(_listItems.size());
             selected_list_item = -1;
 
+            // Reset window dimensions
             InitScrollWidgets();
             ComputeMaxDateWidth();
-            min_width = WW;
-            min_height = WH / 2;
-            max_width = WW * 2;
-            max_height = WH * 2;
+
+            min_width = kWindowSizeMin.width;
+            min_height = kWindowSizeMin.height;
+            max_width = kWindowSizeMax.width;
+            max_height = kWindowSizeMax.height;
         }
 
         void OnClose() override
         {
             _listItems.clear();
             WindowCloseByClass(WindowClass::LoadsaveOverwritePrompt);
+            Config::Save();
 
             // Unpause the game if not on title scene, nor in network play.
             if (!(gScreenFlags & SCREEN_FLAGS_TITLE_DEMO) && NetworkGetMode() == NETWORK_MODE_NONE)
@@ -714,15 +783,19 @@ static Widget window_loadsave_widgets[] =
 
         void OnResize() override
         {
-            if (width < min_width)
+            WindowSetResize(*this, kWindowSizeMin.width, kWindowSizeMin.height, kWindowSizeMax.width, kWindowSizeMax.height);
+
+            auto& config = Config::Get().general;
+            config.FileBrowserWidth = width;
+            config.FileBrowserHeight = height;
+        }
+
+        void OnUpdate() override
+        {
+            if (GetCurrentTextBox().window.classification == classification && GetCurrentTextBox().window.number == number)
             {
-                Invalidate();
-                width = min_width;
-            }
-            if (height < min_height)
-            {
-                Invalidate();
-                height = min_height;
+                WindowUpdateTextboxCaret();
+                WidgetInvalidate(*this, WIDX_FILENAME_TEXTBOX);
             }
         }
 
@@ -730,68 +803,159 @@ static Widget window_loadsave_widgets[] =
         {
             ResizeFrameWithPage();
 
-            Widget* date_widget = &window_loadsave_widgets[WIDX_SORT_DATE];
-            date_widget->right = width - 5;
-            date_widget->left = date_widget->right
-                - (maxDateWidth + maxTimeWidth + (4 * DATE_TIME_GAP) + (kScrollBarWidth + 1));
+            Widget& customiseWidget = widgets[WIDX_SORT_CUSTOMISE];
+            customiseWidget.right = width - 5;
+            customiseWidget.left = customiseWidget.right - 14;
 
-            window_loadsave_widgets[WIDX_SORT_NAME].left = 4;
-            window_loadsave_widgets[WIDX_SORT_NAME].right = window_loadsave_widgets[WIDX_SORT_DATE].left - 1;
+            auto& config = Config::Get().general;
+            if (config.FileBrowserShowDateColumn)
+            {
+                // Date column on the right
+                Widget& dateWidget = widgets[WIDX_SORT_DATE];
+                dateWidget.type = WindowWidgetType::TableHeader;
+                dateWidget.right = customiseWidget.left - 1;
+                dateWidget.left = dateWidget.right - (maxDateWidth + maxTimeWidth + (4 * kDateTimeGap) + (kScrollBarWidth + 1));
 
-            window_loadsave_widgets[WIDX_SCROLL].right = width - 5;
-            window_loadsave_widgets[WIDX_SCROLL].bottom = height - 30;
+                if (config.FileBrowserShowSizeColumn)
+                {
+                    // File size column in the middle
+                    Widget& sizeWidget = widgets[WIDX_SORT_SIZE];
+                    sizeWidget.type = WindowWidgetType::TableHeader;
+                    sizeWidget.right = dateWidget.left - 1;
+                    sizeWidget.left = sizeWidget.right - 65;
 
-            window_loadsave_widgets[WIDX_BROWSE].top = height - 24;
-            window_loadsave_widgets[WIDX_BROWSE].bottom = height - 6;
+                    // Name column is next to size column
+                    widgets[WIDX_SORT_NAME].right = sizeWidget.left - 1;
+                }
+                else
+                {
+                    // Hide file size header
+                    Widget& sizeWidget = widgets[WIDX_SORT_SIZE];
+                    sizeWidget.type = WindowWidgetType::Empty;
+
+                    // Name column is next to date column
+                    widgets[WIDX_SORT_NAME].right = dateWidget.left - 1;
+                }
+            }
+            else if (config.FileBrowserShowSizeColumn)
+            {
+                // Hide date header
+                Widget& dateWidget = widgets[WIDX_SORT_DATE];
+                dateWidget.type = WindowWidgetType::Empty;
+
+                // File size column on the right
+                Widget& sizeWidget = widgets[WIDX_SORT_SIZE];
+                sizeWidget.type = WindowWidgetType::TableHeader;
+                sizeWidget.right = customiseWidget.left - 1;
+                sizeWidget.left = sizeWidget.right - 65;
+
+                // Name column is next to size column
+                widgets[WIDX_SORT_NAME].right = sizeWidget.left - 1;
+            }
+            else
+            {
+                // Name is the only column
+                widgets[WIDX_SORT_NAME].right = customiseWidget.left - 1;
+
+                // Hide other columns
+                widgets[WIDX_SORT_SIZE].type = WindowWidgetType::Empty;
+                widgets[WIDX_SORT_DATE].type = WindowWidgetType::Empty;
+            }
+
+            widgets[WIDX_SCROLL].right = width - 5;
+            widgets[WIDX_SCROLL].bottom = height - 30;
+
+            if (_type & LOADSAVETYPE_SAVE)
+            {
+                widgets[WIDX_SCROLL].bottom -= 18;
+
+                // Get 'Save' button string width
+                auto saveLabel = LanguageGetString(STR_FILEBROWSER_SAVE_BUTTON);
+                auto saveLabelWidth = GfxGetStringWidth(saveLabel, FontStyle::Medium) + 16;
+
+                widgets[WIDX_SAVE].type = WindowWidgetType::Button;
+                widgets[WIDX_SAVE].top = height - 42;
+                widgets[WIDX_SAVE].bottom = height - 30;
+                widgets[WIDX_SAVE].left = width - saveLabelWidth - 5;
+                widgets[WIDX_SAVE].right = width - 5;
+
+                // Get 'Filename:' string width
+                auto filenameLabel = LanguageGetString(STR_FILENAME_LABEL);
+                auto filenameLabelWidth = GfxGetStringWidth(filenameLabel, FontStyle::Medium);
+
+                widgets[WIDX_FILENAME_TEXTBOX].type = WindowWidgetType::TextBox;
+                widgets[WIDX_FILENAME_TEXTBOX].top = height - 42;
+                widgets[WIDX_FILENAME_TEXTBOX].bottom = height - 30;
+                widgets[WIDX_FILENAME_TEXTBOX].left = 4 + filenameLabelWidth + 6;
+                widgets[WIDX_FILENAME_TEXTBOX].right = widgets[WIDX_SAVE].left - 5;
+            }
+            else
+            {
+                widgets[WIDX_SAVE].type = WindowWidgetType::Empty;
+                widgets[WIDX_FILENAME_TEXTBOX].type = WindowWidgetType::Empty;
+            }
+
+            // 'Use system file browser'
+            widgets[WIDX_BROWSE].top = height - 24;
+            widgets[WIDX_BROWSE].bottom = height - 6;
         }
 
         void OnDraw(DrawPixelInfo& dpi) override
         {
             DrawWidgets(dpi);
 
-            const auto shortPath = ShortenPath(_directory, width - 8, FontStyle::Medium);
+            {
+                const auto shortPath = ShortenPath(_directory, width - 8, FontStyle::Medium);
 
-            // Format text
-            std::string buffer;
-            buffer.assign("{BLACK}");
-            buffer += shortPath;
+                // Format text
+                std::string buffer;
+                buffer.assign("{BLACK}");
+                buffer += shortPath;
 
-            // Draw path text
-            const auto normalisedPath = Platform::StrDecompToPrecomp(buffer.data());
-            const auto* normalisedPathC = normalisedPath.c_str();
-            auto ft = Formatter();
-            ft.Add<const char*>(normalisedPathC);
-            DrawTextEllipsised(dpi, windowPos + ScreenCoordsXY{ 4, 20 }, width - 8, STR_STRING, ft);
+                // Draw path text
+                const auto normalisedPath = Platform::StrDecompToPrecomp(buffer.data());
+                const auto* normalisedPathC = normalisedPath.c_str();
 
-            // Name button text
-            StringId id = STR_NONE;
-            if (Config::Get().general.LoadSaveSort == Sort::NameAscending)
-                id = STR_UP;
-            else if (Config::Get().general.LoadSaveSort == Sort::NameDescending)
-                id = STR_DOWN;
+                auto ft = Formatter();
+                ft.Add<const char*>(normalisedPathC);
+                DrawTextEllipsised(dpi, windowPos + ScreenCoordsXY{ 4, 20 }, width - 8, STR_STRING, ft);
+            }
 
-            // Draw name button indicator.
-            Widget sort_name_widget = window_loadsave_widgets[WIDX_SORT_NAME];
-            ft = Formatter();
-            ft.Add<StringId>(id);
-            DrawTextBasic(
-                dpi, windowPos + ScreenCoordsXY{ sort_name_widget.left + 11, sort_name_widget.top + 1 }, STR_NAME, ft,
-                { COLOUR_GREY });
+            const auto drawButtonCaption = [dpi, this](
+                                               Widget& widget, StringId strId, FileBrowserSort ascSort,
+                                               FileBrowserSort descSort) {
+                StringId indicatorId = STR_NONE;
+                if (Config::Get().general.LoadSaveSort == ascSort)
+                    indicatorId = STR_UP;
+                else if (Config::Get().general.LoadSaveSort == descSort)
+                    indicatorId = STR_DOWN;
 
-            // Date button text
-            if (Config::Get().general.LoadSaveSort == Sort::DateAscending)
-                id = STR_UP;
-            else if (Config::Get().general.LoadSaveSort == Sort::DateDescending)
-                id = STR_DOWN;
-            else
-                id = STR_NONE;
+                auto ft = Formatter();
+                ft.Add<StringId>(indicatorId);
 
-            Widget sort_date_widget = window_loadsave_widgets[WIDX_SORT_DATE];
-            ft = Formatter();
-            ft.Add<StringId>(id);
-            DrawTextBasic(
-                dpi, windowPos + ScreenCoordsXY{ sort_date_widget.left + 5, sort_date_widget.top + 1 }, STR_DATE, ft,
-                { COLOUR_GREY });
+                auto cdpi = const_cast<const DrawPixelInfo&>(dpi);
+                DrawTextBasic(cdpi, windowPos + ScreenCoordsXY{ widget.left + 5, widget.top + 1 }, strId, ft, { COLOUR_GREY });
+            };
+
+            auto& config = Config::Get().general;
+            drawButtonCaption(
+                widgets[WIDX_SORT_NAME], STR_NAME_COLUMN, FileBrowserSort::NameAscending, FileBrowserSort::NameDescending);
+
+            if (config.FileBrowserShowSizeColumn)
+                drawButtonCaption(
+                    widgets[WIDX_SORT_SIZE], STR_FILEBROWSER_SIZE_COLUMN, FileBrowserSort::SizeAscending,
+                    FileBrowserSort::SizeDescending);
+
+            if (config.FileBrowserShowDateColumn)
+                drawButtonCaption(
+                    widgets[WIDX_SORT_DATE], STR_DATE_COLUMN, FileBrowserSort::DateAscending, FileBrowserSort::DateDescending);
+
+            // 'Filename:' label
+            if (_type & LOADSAVETYPE_SAVE)
+            {
+                auto& widget = widgets[WIDX_FILENAME_TEXTBOX];
+                DrawTextBasic(dpi, windowPos + ScreenCoordsXY{ 5, widget.top + 2 }, STR_FILENAME_LABEL, {}, { COLOUR_GREY });
+            }
         }
 
         void OnMouseUp(WidgetIndex widgetIndex) override
@@ -837,13 +1001,27 @@ static Widget window_loadsave_widgets[] =
                 break;
 
                 case WIDX_SORT_NAME:
-                    if (Config::Get().general.LoadSaveSort == Sort::NameAscending)
+                    if (Config::Get().general.LoadSaveSort == FileBrowserSort::NameAscending)
                     {
-                        Config::Get().general.LoadSaveSort = Sort::NameDescending;
+                        Config::Get().general.LoadSaveSort = FileBrowserSort::NameDescending;
                     }
                     else
                     {
-                        Config::Get().general.LoadSaveSort = Sort::NameAscending;
+                        Config::Get().general.LoadSaveSort = FileBrowserSort::NameAscending;
+                    }
+                    Config::Save();
+                    SortList();
+                    Invalidate();
+                    break;
+
+                case WIDX_SORT_SIZE:
+                    if (Config::Get().general.LoadSaveSort == FileBrowserSort::SizeDescending)
+                    {
+                        Config::Get().general.LoadSaveSort = FileBrowserSort::SizeAscending;
+                    }
+                    else
+                    {
+                        Config::Get().general.LoadSaveSort = FileBrowserSort::SizeDescending;
                     }
                     Config::Save();
                     SortList();
@@ -851,13 +1029,13 @@ static Widget window_loadsave_widgets[] =
                     break;
 
                 case WIDX_SORT_DATE:
-                    if (Config::Get().general.LoadSaveSort == Sort::DateDescending)
+                    if (Config::Get().general.LoadSaveSort == FileBrowserSort::DateDescending)
                     {
-                        Config::Get().general.LoadSaveSort = Sort::DateAscending;
+                        Config::Get().general.LoadSaveSort = FileBrowserSort::DateAscending;
                     }
                     else
                     {
-                        Config::Get().general.LoadSaveSort = Sort::DateDescending;
+                        Config::Get().general.LoadSaveSort = FileBrowserSort::DateDescending;
                     }
                     Config::Save();
                     SortList();
@@ -869,6 +1047,71 @@ static Widget window_loadsave_widgets[] =
                     InitScrollWidgets();
                     no_list_items = static_cast<uint16_t>(_listItems.size());
                     break;
+
+                case WIDX_FILENAME_TEXTBOX:
+                    WindowStartTextbox(*this, widgetIndex, _currentFilename, sizeof(_currentFilename));
+                    break;
+
+                case WIDX_SAVE:
+                {
+                    const u8string path = Path::WithExtension(
+                        Path::Combine(_directory, _currentFilename), RemovePatternWildcard(_extensionPattern));
+
+                    if (File::Exists(path))
+                        WindowOverwritePromptOpen(_currentFilename, path);
+                    else
+                        Select(path.c_str());
+                }
+            }
+        }
+
+        void OnMouseDown(WidgetIndex widgetIndex) override
+        {
+            if (widgetIndex != WIDX_SORT_CUSTOMISE)
+                return;
+
+            gDropdownItems[0].Format = STR_TOGGLE_OPTION;
+            gDropdownItems[1].Format = STR_TOGGLE_OPTION;
+            gDropdownItems[2].Format = STR_TOGGLE_OPTION;
+            gDropdownItems[0].Args = STR_FILEBROWSER_CUSTOMISE_FILENAME;
+            gDropdownItems[1].Args = STR_FILEBROWSER_CUSTOMISE_SIZE;
+            gDropdownItems[2].Args = STR_FILEBROWSER_CUSTOMISE_DATE;
+
+            Widget* widget = &widgets[WIDX_SORT_CUSTOMISE];
+
+            WindowDropdownShowTextCustomWidth(
+                { windowPos.x + widget->left - 70, windowPos.y + widget->top }, widget->height() + 1, colours[1], 0,
+                Dropdown::Flag::StayOpen, 3, 90);
+
+            auto& config = Config::Get().general;
+
+            Dropdown::SetChecked(0, true);
+            Dropdown::SetChecked(1, config.FileBrowserShowSizeColumn);
+            Dropdown::SetChecked(2, config.FileBrowserShowDateColumn);
+        }
+
+        void OnDropdown(WidgetIndex widgetIndex, int32_t selectedIndex) override
+        {
+            if (widgetIndex != WIDX_SORT_CUSTOMISE)
+                return;
+
+            auto& config = Config::Get().general;
+            bool changed = false;
+            if (selectedIndex == 1)
+            {
+                config.FileBrowserShowSizeColumn ^= true;
+                changed = true;
+            }
+            else if (selectedIndex == 2)
+            {
+                config.FileBrowserShowDateColumn ^= true;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Config::Save();
+                Invalidate();
             }
         }
 
@@ -916,6 +1159,16 @@ static Widget window_loadsave_widgets[] =
                         Select(path.c_str());
                     break;
                 }
+
+                case WIDX_FILENAME_TEXTBOX:
+                {
+                    std::string tempText = text.data();
+                    const char* cStr = tempText.c_str();
+                    if (strcmp(_currentFilename, cStr) == 0)
+                        return;
+
+                    String::safeUtf8Copy(_currentFilename, cStr, sizeof(_currentFilename));
+                }
             }
         }
 
@@ -932,9 +1185,11 @@ static Widget window_loadsave_widgets[] =
             if (selectedItem >= no_list_items)
                 return;
 
-            selected_list_item = selectedItem;
-
-            Invalidate();
+            if (selected_list_item != selectedItem)
+            {
+                selected_list_item = selectedItem;
+                Invalidate();
+            }
         }
 
         void OnScrollMouseDown(int32_t scrollIndex, const ScreenCoordsXY& screenCoords) override
@@ -945,27 +1200,27 @@ static Widget window_loadsave_widgets[] =
             if (selectedItem >= no_list_items)
                 return;
 
-            if (_listItems[selectedItem].type == TYPE_DIRECTORY)
+            if (_listItems[selectedItem].type == FileType::directory)
             {
                 // The selected item is a folder
-                int32_t includeNewItem;
-
                 no_list_items = 0;
                 selected_list_item = -1;
-                includeNewItem = (_type & 1) == LOADSAVETYPE_SAVE;
+                bool includeNewItem = (_type & 1) == LOADSAVETYPE_SAVE;
 
                 char directory[MAX_PATH];
-                SafeStrCpy(directory, _listItems[selectedItem].path.c_str(), sizeof(directory));
+                String::safeUtf8Copy(directory, _listItems[selectedItem].path.c_str(), sizeof(directory));
 
                 PopulateList(includeNewItem, directory, _extensionPattern);
                 InitScrollWidgets();
 
                 no_list_items = static_cast<uint16_t>(_listItems.size());
             }
-            else
+            else // FileType::file
             {
-                // TYPE_FILE
                 // Load or overwrite
+                String::set(_currentFilename, std::size(_currentFilename), _listItems[selectedItem].name.c_str());
+                WidgetInvalidate(*this, WIDX_FILENAME_TEXTBOX);
+
                 if ((_type & 0x01) == LOADSAVETYPE_SAVE)
                     WindowOverwritePromptOpen(_listItems[selectedItem].name, _listItems[selectedItem].path);
                 else
@@ -978,8 +1233,13 @@ static Widget window_loadsave_widgets[] =
             GfxFillRect(
                 dpi, { { dpi.x, dpi.y }, { dpi.x + dpi.width - 1, dpi.y + dpi.height - 1 } },
                 ColourMapA[colours[1].colour].mid_light);
+
             const int32_t listWidth = widgets[WIDX_SCROLL].width();
-            const int32_t dateAnchor = widgets[WIDX_SORT_DATE].left + maxDateWidth + DATE_TIME_GAP;
+            const auto sizeColumnLeft = widgets[WIDX_SORT_SIZE].left;
+            const auto dateColumnLeft = widgets[WIDX_SORT_DATE].left;
+            const int32_t dateAnchor = dateColumnLeft + maxDateWidth + kDateTimeGap;
+
+            auto& config = Config::Get().general;
 
             for (int32_t i = 0; i < no_list_items; i++)
             {
@@ -1006,26 +1266,44 @@ static Widget window_loadsave_widgets[] =
                     DrawTextBasic(dpi, { 0, y }, stringId, ft);
                 }
 
+                // Folders get a folder icon
+                if (_listItems[i].type == FileType::directory)
+                {
+                    GfxDrawSprite(dpi, ImageId(SPR_G2_FOLDER), { 1, y });
+                }
+
                 // Print filename
                 auto ft = Formatter();
                 ft.Add<StringId>(STR_STRING);
                 ft.Add<char*>(_listItems[i].name.c_str());
-                int32_t max_file_width = widgets[WIDX_SORT_NAME].width() - 10;
-                DrawTextEllipsised(dpi, { 10, y }, max_file_width, stringId, ft);
+                int32_t max_file_width = widgets[WIDX_SORT_NAME].width() - 15;
+                DrawTextEllipsised(dpi, { 15, y }, max_file_width, stringId, ft);
 
                 // Print formatted modified date, if this is a file
-                if (_listItems[i].type == TYPE_FILE)
+                if (_listItems[i].type != FileType::file)
+                    continue;
+
+                if (config.FileBrowserShowSizeColumn)
+                {
+                    ft = Formatter();
+                    ft.Add<StringId>(STR_FILEBROWSER_FILE_SIZE_VALUE);
+                    ft.Add<uint32_t>(_listItems[i].fileSizeFormatted);
+                    ft.Add<StringId>(_listItems[i].fileSizeUnit);
+                    DrawTextEllipsised(dpi, { sizeColumnLeft + 2, y }, maxDateWidth + maxTimeWidth, stringId, ft);
+                }
+
+                if (config.FileBrowserShowDateColumn)
                 {
                     ft = Formatter();
                     ft.Add<StringId>(STR_STRING);
                     ft.Add<char*>(_listItems[i].date_formatted.c_str());
                     DrawTextEllipsised(
-                        dpi, { dateAnchor - DATE_TIME_GAP, y }, maxDateWidth, stringId, ft, { TextAlignment::RIGHT });
+                        dpi, { dateAnchor - kDateTimeGap, y }, maxDateWidth, stringId, ft, { TextAlignment::RIGHT });
 
                     ft = Formatter();
                     ft.Add<StringId>(STR_STRING);
                     ft.Add<char*>(_listItems[i].time_formatted.c_str());
-                    DrawTextEllipsised(dpi, { dateAnchor + DATE_TIME_GAP, y }, maxTimeWidth, stringId, ft);
+                    DrawTextEllipsised(dpi, { dateAnchor + kDateTimeGap, y }, maxTimeWidth, stringId, ft);
                 }
             }
         }
@@ -1041,11 +1319,12 @@ static Widget window_loadsave_widgets[] =
         _type = type;
         _defaultPath = defaultPath;
 
+        auto& config = Config::Get().general;
         bool isSave = (type & 0x01) == LOADSAVETYPE_SAVE;
 
         // Bypass the lot?
         auto hasFilePicker = OpenRCT2::GetContext()->GetUiContext()->HasFilePicker();
-        if (Config::Get().general.UseNativeBrowseDialog && hasFilePicker)
+        if (config.UseNativeBrowseDialog && hasFilePicker)
         {
             const u8string path = OpenSystemFileBrowser(isSave);
             if (!path.empty())
@@ -1060,8 +1339,20 @@ static Widget window_loadsave_widgets[] =
         auto* w = static_cast<LoadSaveWindow*>(WindowBringToFrontByClass(WindowClass::Loadsave));
         if (w == nullptr)
         {
+            if (config.FileBrowserWidth < kWindowSizeMin.width || config.FileBrowserHeight < kWindowSizeMin.height
+                || config.FileBrowserWidth > kWindowSizeMax.width || config.FileBrowserHeight > kWindowSizeMax.height)
+            {
+                config.FileBrowserWidth = kWindowSizeInit.width;
+                config.FileBrowserHeight = kWindowSizeInit.height;
+                Config::Save();
+            }
+
+            auto width = config.FileBrowserWidth;
+            auto height = config.FileBrowserHeight;
+
             w = WindowCreate<LoadSaveWindow>(
-                WindowClass::Loadsave, WW, WH, WF_STICK_TO_FRONT | WF_RESIZABLE | WF_AUTO_POSITION | WF_CENTRE_SCREEN, type);
+                WindowClass::Loadsave, width, height, WF_STICK_TO_FRONT | WF_RESIZABLE | WF_AUTO_POSITION | WF_CENTRE_SCREEN,
+                type);
         }
 
         switch (type & 0x0E)
@@ -1097,6 +1388,25 @@ static Widget window_loadsave_widgets[] =
         return w;
     }
 
+    void WindowLoadSaveInputKey(WindowBase* w, uint32_t keycode)
+    {
+        if (w->classification != WindowClass::Loadsave)
+        {
+            return;
+        }
+
+        auto loadSaveWindow = static_cast<LoadSaveWindow*>(w);
+
+        if (keycode == SDLK_RETURN || keycode == SDLK_KP_ENTER)
+        {
+            loadSaveWindow->OnMouseUp(WIDX_SAVE);
+        }
+        else if (keycode == SDLK_ESCAPE)
+        {
+            loadSaveWindow->Close();
+        }
+    }
+
 #pragma region Overwrite prompt
 
     constexpr int32_t OVERWRITE_WW = 200;
@@ -1111,13 +1421,14 @@ static Widget window_loadsave_widgets[] =
         WIDX_OVERWRITE_CANCEL
     };
 
+    // clang-format off
     static Widget window_overwrite_prompt_widgets[] = {
         WINDOW_SHIM_WHITE(STR_FILEBROWSER_OVERWRITE_TITLE, OVERWRITE_WW, OVERWRITE_WH),
-        { WindowWidgetType::Button, 0, 10, 94, OVERWRITE_WH - 20, OVERWRITE_WH - 9, STR_FILEBROWSER_OVERWRITE_TITLE, STR_NONE },
-        { WindowWidgetType::Button, 0, OVERWRITE_WW - 95, OVERWRITE_WW - 11, OVERWRITE_WH - 20, OVERWRITE_WH - 9,
-          STR_SAVE_PROMPT_CANCEL, STR_NONE },
+        MakeWidget({                10, OVERWRITE_WH - 20 }, { 84, 11 }, WindowWidgetType::Button, WindowColour::Primary, STR_FILEBROWSER_OVERWRITE_TITLE),
+        MakeWidget({ OVERWRITE_WW - 95, OVERWRITE_WH - 20 }, { 85, 11 }, WindowWidgetType::Button, WindowColour::Primary, STR_SAVE_PROMPT_CANCEL),
         kWidgetsEnd,
     };
+    // clang-format on
 
     class OverwritePromptWindow final : public Window
     {
@@ -1177,6 +1488,25 @@ static Widget window_loadsave_widgets[] =
         return WindowCreate<OverwritePromptWindow>(
             WindowClass::LoadsaveOverwritePrompt, OVERWRITE_WW, OVERWRITE_WH,
             WF_TRANSPARENT | WF_STICK_TO_FRONT | WF_CENTRE_SCREEN, name, path);
+    }
+
+    void WindowLoadSaveOverwritePromptInputKey(WindowBase* w, uint32_t keycode)
+    {
+        if (w->classification != WindowClass::LoadsaveOverwritePrompt)
+        {
+            return;
+        }
+
+        auto promptWindow = static_cast<OverwritePromptWindow*>(w);
+
+        if (keycode == SDLK_RETURN || keycode == SDLK_KP_ENTER)
+        {
+            promptWindow->OnMouseUp(WIDX_OVERWRITE_OVERWRITE);
+        }
+        else if (keycode == SDLK_ESCAPE)
+        {
+            promptWindow->OnMouseUp(WIDX_OVERWRITE_CANCEL);
+        }
     }
 
 #pragma endregion

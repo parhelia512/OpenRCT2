@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -15,16 +15,15 @@
 #include "../../interface/Viewport.h"
 #include "../../localisation/Formatter.h"
 #include "../../localisation/Formatting.h"
-#include "../../localisation/Localisation.h"
 #include "../../localisation/StringIds.h"
 #include "../../object/BannerObject.h"
 #include "../../object/ObjectEntryManager.h"
 #include "../../profiling/Profiling.h"
 #include "../../ride/TrackDesign.h"
-#include "../../sprites.h"
 #include "../../world/Banner.h"
 #include "../../world/Scenery.h"
 #include "../../world/TileInspector.h"
+#include "../../world/tile_element/BannerElement.h"
 #include "Paint.TileElement.h"
 
 using namespace OpenRCT2;

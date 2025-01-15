@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,9 +11,9 @@
 
 #include "../Limits.h"
 #include "../actions/ResultWithMessage.h"
-#include "../common.h"
 #include "../core/BitSet.hpp"
 #include "../core/FixedPoint.hpp"
+#include "../localisation/Formatter.h"
 #include "../object/MusicObject.h"
 #include "../rct2/DATLimits.h"
 #include "../rct2/Limits.h"
@@ -28,6 +28,7 @@
 #include <array>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string_view>
 
 struct IObjectManager;
@@ -40,14 +41,26 @@ struct Staff;
 struct Vehicle;
 struct RideObjectEntry;
 struct ResultWithMessage;
+struct TileElement;
+struct TrackElement;
 
 constexpr uint8_t kRideAdjacencyCheckDistance = 5;
 
 constexpr uint8_t TUNE_ID_NULL = 0xFF;
 
-constexpr uint16_t const MAX_STATION_LOCATIONS = OpenRCT2::Limits::kMaxStationsPerRide * 2; // Entrance and exit per station
+constexpr uint16_t MAX_STATION_LOCATIONS = OpenRCT2::Limits::kMaxStationsPerRide * 2; // Entrance and exit per station
 
-constexpr uint16_t const MAZE_CLEARANCE_HEIGHT = 4 * COORDS_Z_STEP;
+constexpr uint16_t MAZE_CLEARANCE_HEIGHT = 4 * kCoordsZStep;
+
+constexpr uint8_t kRideMaxDropsCount = 63;
+constexpr uint8_t kRideNumDropsMask = 0b00111111;
+constexpr uint8_t kRideMaxNumPoweredLiftsCount = 3;
+constexpr uint8_t kRideNumPoweredLiftsMask = 0b11000000;
+
+constexpr money64 kRideMinPrice = 0.00_GBP;
+constexpr money64 kRideMaxPrice = 20.00_GBP;
+
+extern const StringId kRideInspectionIntervalNames[];
 
 struct RideStation
 {
@@ -94,12 +107,12 @@ enum class RideClassification
     KioskOrFacility
 };
 
-namespace ShelteredSectionsBits
+namespace OpenRCT2::ShelteredSectionsBits
 {
     constexpr uint8_t NumShelteredSectionsMask = 0b00011111;
     constexpr uint8_t RotatingWhileSheltered = 0b00100000;
     constexpr uint8_t BankingWhileSheltered = 0b01000000;
-}; // namespace ShelteredSectionsBits
+}; // namespace OpenRCT2::ShelteredSectionsBits
 
 struct TrackDesign;
 struct TrackDesignState;
@@ -120,7 +133,7 @@ struct Ride
     // 0x4c.
     ObjectEntryIndex subtype{ OBJECT_ENTRY_INDEX_NULL };
     RideMode mode{};
-    uint8_t colour_scheme_type{};
+    VehicleColourSettings vehicleColourSettings{};
     VehicleColour vehicle_colours[OpenRCT2::Limits::kMaxVehicleColours]{};
     // 0 = closed, 1 = open, 2 = test
     RideStatus status{};
@@ -156,8 +169,7 @@ struct Ride
     // bit 6: log reverser, waterfall
     // bit 7: whirlpool
     uint8_t special_track_elements{};
-    // Divide this value by 29127 to get the human-readable max speed
-    // (in RCT2, display_speed = (max_speed * 9) >> 18)
+    // Use ToHumanReadableSpeed if converting to display
     int32_t max_speed{};
     int32_t average_speed{};
     uint8_t current_test_segment{};
@@ -176,7 +188,7 @@ struct Ride
     uint16_t turn_count_banked{};
     uint16_t turn_count_sloped{}; // X = number turns > 3 elements
     // Y is number of powered lifts, X is drops
-    uint8_t drops{}; // (YYXX XXXX)
+    uint8_t dropsPoweredLifts{}; // (YYXX XXXX)
     uint8_t start_drop_height{};
     uint8_t highest_drop_height{};
     int32_t sheltered_length{};
@@ -189,18 +201,9 @@ struct Ride
     uint16_t num_customers_timeout{};
     // Customer count in the last 10 * 960 game ticks (sliding window)
     uint16_t num_customers[OpenRCT2::Limits::kCustomerHistorySize]{};
-    money64 price[RCT2::ObjectLimits::MaxShopItemsPerRideEntry]{};
+    money64 price[OpenRCT2::RCT2::ObjectLimits::MaxShopItemsPerRideEntry]{};
     TileCoordsXYZ ChairliftBullwheelLocation[2];
-    union
-    {
-        RatingTuple ratings{};
-        struct
-        {
-            ride_rating excitement;
-            ride_rating intensity;
-            ride_rating nausea;
-        };
-    };
+    RatingTuple ratings{};
     money64 value{};
     uint16_t chairlift_bullwheel_rotation{};
     uint8_t satisfaction{};
@@ -261,7 +264,7 @@ struct Ride
     uint8_t connected_message_throttle{};
     money64 income_per_hour{};
     money64 profit{};
-    TrackColour track_colour[OpenRCT2::Limits::kNumColourSchemes]{};
+    TrackColour track_colour[kNumRideColourSchemes]{};
     ObjectEntryIndex music{ OBJECT_ENTRY_INDEX_NULL };
     ObjectEntryIndex entrance_style{ OBJECT_ENTRY_INDEX_NULL };
     uint16_t vehicle_change_timeout{};
@@ -269,7 +272,7 @@ struct Ride
     uint8_t lift_hill_speed{};
     uint32_t guests_favourite{};
     uint32_t lifecycle_flags{};
-    uint16_t total_air_time{};
+    uint16_t totalAirTime{};
     StationIndex current_test_station{ StationIndex::GetNull() };
     uint8_t num_circuits{};
     CoordsXYZ CableLiftLoc{};
@@ -291,8 +294,8 @@ private:
 public:
     RideStation& GetStation(StationIndex stationIndex = StationIndex::FromUnderlying(0));
     const RideStation& GetStation(StationIndex stationIndex = StationIndex::FromUnderlying(0)) const;
-    std::array<RideStation, OpenRCT2::Limits::kMaxStationsPerRide>& GetStations();
-    const std::array<RideStation, OpenRCT2::Limits::kMaxStationsPerRide>& GetStations() const;
+    std::span<RideStation> GetStations();
+    std::span<const RideStation> GetStations() const;
     StationIndex GetStationIndex(const RideStation* station) const;
 
     // Returns the logical station number from the given station. Index 0 = station 1, index 1 = station 2. It accounts for gaps
@@ -414,7 +417,11 @@ public:
 
     bool FindTrackGap(const CoordsXYE& input, CoordsXYE* output) const;
 
-    uint8_t GetEntranceStyle() const;
+    uint8_t getNumDrops() const;
+    void setNumDrops(uint8_t newValue);
+
+    uint8_t getNumPoweredLifts() const;
+    void setPoweredLifts(uint8_t newValue);
 };
 void UpdateSpiralSlide(Ride& ride);
 void UpdateChairlift(Ride& ride);
@@ -434,7 +441,7 @@ struct TrackBeginEnd
     TileElement* end_element;
 };
 #ifdef PLATFORM_32BIT
-assert_struct_size(TrackBeginEnd, 36);
+static_assert(sizeof(TrackBeginEnd) == 36);
 #endif
 
 #pragma pack(pop)
@@ -613,6 +620,8 @@ enum
     RIDE_TYPE_ALPINE_COASTER,
     RIDE_TYPE_CLASSIC_WOODEN_ROLLER_COASTER,
     RIDE_TYPE_CLASSIC_STAND_UP_ROLLER_COASTER,
+    RIDE_TYPE_LSM_LAUNCHED_ROLLER_COASTER,
+    RIDE_TYPE_CLASSIC_WOODEN_TWISTER_ROLLER_COASTER,
 
     RIDE_TYPE_COUNT
 };
@@ -671,15 +680,6 @@ enum class RideMode : uint8_t
 };
 
 RideMode& operator++(RideMode& d, int);
-
-enum
-{
-    RIDE_COLOUR_SCHEME_MODE_ALL_SAME,
-    RIDE_COLOUR_SCHEME_MODE_DIFFERENT_PER_TRAIN,
-    RIDE_COLOUR_SCHEME_MODE_DIFFERENT_PER_CAR,
-
-    RIDE_COLOUR_SCHEME_MODE_COUNT,
-};
 
 enum
 {
@@ -778,23 +778,6 @@ enum
 
 enum
 {
-    RIDE_COLOUR_SCHEME_MAIN,
-    RIDE_COLOUR_SCHEME_ADDITIONAL_1,
-    RIDE_COLOUR_SCHEME_ADDITIONAL_2,
-    RIDE_COLOUR_SCHEME_ADDITIONAL_3,
-
-    RIDE_COLOUR_SCHEME_COUNT,
-};
-
-enum
-{
-    VEHICLE_COLOUR_SCHEME_SAME,
-    VEHICLE_COLOUR_SCHEME_PER_TRAIN,
-    VEHICLE_COLOUR_SCHEME_PER_VEHICLE
-};
-
-enum
-{
     RIDE_INSPECTION_EVERY_10_MINUTES,
     RIDE_INSPECTION_EVERY_20_MINUTES,
     RIDE_INSPECTION_EVERY_30_MINUTES,
@@ -813,6 +796,7 @@ enum
     RIDE_INVALIDATE_RIDE_LIST = 1 << 3,
     RIDE_INVALIDATE_RIDE_OPERATING = 1 << 4,
     RIDE_INVALIDATE_RIDE_MAINTENANCE = 1 << 5,
+    RIDE_INVALIDATE_RIDE_MUSIC = 1 << 6,
 };
 
 enum
@@ -918,95 +902,8 @@ constexpr uint16_t kTurnMask2Elements = 0x00E0;
 constexpr uint16_t kTurnMask3Elements = 0x0700;
 constexpr uint16_t kTurnMask4PlusElements = 0xF800;
 
-constexpr uint32_t CONSTRUCTION_LIFT_HILL_SELECTED = 1 << 0;
-constexpr uint32_t CONSTRUCTION_INVERTED_TRACK_SELECTED = 1 << 1;
-
 Ride* GetRide(RideId index);
 
-struct RideManager
-{
-    const Ride* operator[](RideId id) const
-    {
-        return GetRide(id);
-    }
-
-    Ride* operator[](RideId id)
-    {
-        return GetRide(id);
-    }
-
-    class Iterator
-    {
-        friend RideManager;
-
-    private:
-        RideManager* _rideManager;
-        RideId::UnderlyingType _index{};
-        RideId::UnderlyingType _endIndex{};
-
-    public:
-        using difference_type = intptr_t;
-        using value_type = Ride;
-        using pointer = const Ride*;
-        using reference = const Ride&;
-        using iterator_category = std::forward_iterator_tag;
-
-    private:
-        Iterator(RideManager& rideManager, size_t beginIndex, size_t endIndex)
-            : _rideManager(&rideManager)
-            , _index(static_cast<RideId::UnderlyingType>(beginIndex))
-            , _endIndex(static_cast<RideId::UnderlyingType>(endIndex))
-        {
-            if (_index < _endIndex && (*_rideManager)[RideId::FromUnderlying(_index)] == nullptr)
-            {
-                ++(*this);
-            }
-        }
-
-    public:
-        Iterator& operator++()
-        {
-            do
-            {
-                _index++;
-            } while (_index < _endIndex && (*_rideManager)[RideId::FromUnderlying(_index)] == nullptr);
-            return *this;
-        }
-        Iterator operator++(int)
-        {
-            auto result = *this;
-            ++(*this);
-            return result;
-        }
-        bool operator==(Iterator other) const
-        {
-            return _index == other._index;
-        }
-        bool operator!=(Iterator other) const
-        {
-            return !(*this == other);
-        }
-        Ride& operator*()
-        {
-            return *(*_rideManager)[RideId::FromUnderlying(_index)];
-        }
-    };
-
-    size_t size() const;
-    Iterator begin();
-    Iterator end();
-    Iterator get(RideId rideId);
-    Iterator begin() const
-    {
-        return (const_cast<RideManager*>(this))->begin();
-    }
-    Iterator end() const
-    {
-        return (const_cast<RideManager*>(this))->end();
-    }
-};
-
-RideManager GetRideManager();
 RideId GetNextFreeRideId();
 Ride* RideAllocateAtIndex(RideId index);
 Ride& RideGetTemporaryForPreview();
@@ -1067,7 +964,6 @@ bool TrackBlockGetPreviousFromZero(
 
 void RideGetStartOfTrack(CoordsXYE* output);
 
-void WindowRideConstructionUpdateActiveElements();
 money64 RideEntranceExitPlaceGhost(
     const Ride& ride, const CoordsXY& entranceExitCoords, Direction direction, int32_t placeType, StationIndex stationNum);
 
@@ -1079,7 +975,7 @@ void BlockBrakeSetLinkedBrakesClosed(const CoordsXYZ& vehicleTrackLocation, Trac
 uint8_t RideEntryGetVehicleAtPosition(int32_t rideEntryIndex, int32_t numCarsPerTrain, int32_t position);
 void RideUpdateVehicleColours(const Ride& ride);
 
-OpenRCT2::BitSet<TRACK_GROUP_COUNT> RideEntryGetSupportedTrackPieces(const RideObjectEntry& rideEntry);
+OpenRCT2::BitSet<EnumValue(TrackGroup::count)> RideEntryGetSupportedTrackPieces(const RideObjectEntry& rideEntry);
 
 enum class RideSetSetting : uint8_t;
 money64 SetOperatingSetting(RideId rideId, RideSetSetting setting, uint8_t value);
@@ -1101,7 +997,7 @@ int32_t GetBoosterSpeed(ride_type_t rideType, int32_t rawSpeed);
 void FixInvalidVehicleSpriteSizes();
 bool RideEntryHasCategory(const RideObjectEntry& rideEntry, uint8_t category);
 
-int32_t RideGetEntryIndex(int32_t rideType, int32_t rideSubType);
+ObjectEntryIndex RideGetEntryIndex(ride_type_t rideType, ObjectEntryIndex rideSubType);
 
 void DetermineRideEntranceAndExitLocations();
 void RideClearLeftoverEntrances(const Ride& ride);
