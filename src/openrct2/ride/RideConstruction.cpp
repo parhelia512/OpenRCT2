@@ -30,6 +30,7 @@
 #include "../world/Footpath.h"
 #include "../world/Location.hpp"
 #include "../world/Map.h"
+#include "../world/MapSelection.h"
 #include "../world/Park.h"
 #include "../world/Scenery.h"
 #include "../world/TileElementsView.h"
@@ -156,14 +157,14 @@ static void ride_remove_cable_lift(Ride& ride)
         auto spriteIndex = ride.cableLift;
         do
         {
-            Vehicle* vehicle = GetEntity<Vehicle>(spriteIndex);
+            Vehicle* vehicle = getGameState().entities.GetEntity<Vehicle>(spriteIndex);
             if (vehicle == nullptr)
             {
                 return;
             }
             vehicle->Invalidate();
             spriteIndex = vehicle->next_vehicle_on_train;
-            EntityRemove(vehicle);
+            getGameState().entities.EntityRemove(vehicle);
         } while (!spriteIndex.IsNull());
     }
 }
@@ -184,14 +185,14 @@ void Ride::removeVehicles()
             auto spriteIndex = vehicles[i];
             while (!spriteIndex.IsNull())
             {
-                Vehicle* vehicle = GetEntity<Vehicle>(spriteIndex);
+                Vehicle* vehicle = getGameState().entities.GetEntity<Vehicle>(spriteIndex);
                 if (vehicle == nullptr)
                 {
                     break;
                 }
                 vehicle->Invalidate();
                 spriteIndex = vehicle->next_vehicle_on_train;
-                EntityRemove(vehicle);
+                getGameState().entities.EntityRemove(vehicle);
             }
 
             vehicles[i] = EntityId::GetNull();
@@ -206,7 +207,7 @@ void Ride::removeVehicles()
             if (vehicle->ride == id)
             {
                 vehicle->Invalidate();
-                EntityRemove(vehicle);
+                getGameState().entities.EntityRemove(vehicle);
             }
         }
     }
@@ -226,7 +227,7 @@ void RideClearForConstruction(Ride& ride)
     // Open circuit rides will go directly into building mode (creating ghosts) where it would normally clear the stats,
     // however this causes desyncs since it's directly run from the window and other clients would not get it.
     // To prevent these problems, unconditionally invalidate the test results on all clients in multiplayer games.
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         InvalidateTestResults(ride);
     }

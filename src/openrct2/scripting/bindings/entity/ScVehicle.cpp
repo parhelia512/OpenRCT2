@@ -10,6 +10,7 @@
 #include "ScVehicle.hpp"
 
 #include "../../../ride/TrackData.h"
+#include "../../../world/Map.h"
 #include "../../../world/tile_element/TrackElement.h"
 #include "../ride/ScRide.hpp"
 
@@ -101,7 +102,7 @@ namespace OpenRCT2::Scripting
 
     Vehicle* ScVehicle::GetVehicle() const
     {
-        return ::GetEntity<Vehicle>(_id);
+        return ::getGameState().entities.GetEntity<Vehicle>(_id);
     }
 
     ObjectEntryIndex ScVehicle::rideObject_get() const

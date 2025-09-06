@@ -53,6 +53,8 @@
 #include <openrct2/util/Util.h>
 #include <openrct2/world/ConstructionClearance.h>
 #include <openrct2/world/Footpath.h>
+#include <openrct2/world/Map.h>
+#include <openrct2/world/MapSelection.h>
 #include <openrct2/world/Park.h>
 #include <openrct2/world/Scenery.h>
 #include <openrct2/world/tile_element/BannerElement.h>
@@ -301,8 +303,8 @@ namespace OpenRCT2::Ui::Windows
                     if (gWindowSceneryScatterEnabled)
                         windowMgr->CloseByClass(WindowClass::SceneryScatter);
                     else if (
-                        NetworkGetMode() != NETWORK_MODE_CLIENT
-                        || NetworkCanPerformCommand(NetworkGetCurrentPlayerGroupIndex(), -2))
+                        Network::GetMode() != Network::Mode::client
+                        || Network::CanPerformCommand(Network::GetCurrentPlayerGroupIndex(), -2))
                     {
                         SceneryScatterOpen();
                     }
@@ -2968,8 +2970,8 @@ namespace OpenRCT2::Ui::Windows
 
                     int32_t quantity = 1;
                     bool isCluster = gWindowSceneryScatterEnabled
-                        && (NetworkGetMode() != NETWORK_MODE_CLIENT
-                            || NetworkCanPerformCommand(NetworkGetCurrentPlayerGroupIndex(), -2));
+                        && (Network::GetMode() != Network::Mode::client
+                            || Network::CanPerformCommand(Network::GetCurrentPlayerGroupIndex(), -2));
 
                     if (isCluster)
                     {

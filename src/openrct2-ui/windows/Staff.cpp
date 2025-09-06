@@ -36,6 +36,7 @@
 #include <openrct2/ui/WindowManager.h>
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/Footpath.h>
+#include <openrct2/world/MapSelection.h>
 #include <openrct2/world/Park.h>
 
 using namespace OpenRCT2::Numerics;
@@ -383,7 +384,7 @@ namespace OpenRCT2::Ui::Windows
                     nullLoc.SetNull();
                     GameActions::PeepPickupAction pickupAction{ GameActions::PeepPickupType::Pickup,
                                                                 EntityId::FromUnderlying(number), nullLoc,
-                                                                NetworkGetCurrentPlayerId() };
+                                                                Network::GetCurrentPlayerId() };
                     pickupAction.SetCallback(
                         [peepnum = number](const GameActions::GameAction* ga, const GameActions::Result* result) {
                             if (result->Error != GameActions::Status::Ok)
@@ -711,7 +712,7 @@ namespace OpenRCT2::Ui::Windows
             GameActions::PeepPickupAction pickupAction{ GameActions::PeepPickupType::Place,
                                                         staffEntityId,
                                                         { destCoords, tileElement->GetBaseZ() },
-                                                        NetworkGetCurrentPlayerId() };
+                                                        Network::GetCurrentPlayerId() };
             pickupAction.SetCallback([](const GameActions::GameAction* ga, const GameActions::Result* result) {
                 if (result->Error != GameActions::Status::Ok)
                     return;
@@ -729,7 +730,7 @@ namespace OpenRCT2::Ui::Windows
             GameActions::PeepPickupAction pickupAction{ GameActions::PeepPickupType::Cancel,
                                                         EntityId::FromUnderlying(number),
                                                         { _pickedPeepOldX, 0, 0 },
-                                                        NetworkGetCurrentPlayerId() };
+                                                        Network::GetCurrentPlayerId() };
             GameActions::Execute(&pickupAction);
         }
 
@@ -1208,7 +1209,7 @@ namespace OpenRCT2::Ui::Windows
 
         Staff* GetStaff()
         {
-            return GetEntity<Staff>(EntityId::FromUnderlying(number));
+            return getGameState().entities.GetEntity<Staff>(EntityId::FromUnderlying(number));
         }
 
         static constexpr int32_t TabAnimationDivisor[] = {

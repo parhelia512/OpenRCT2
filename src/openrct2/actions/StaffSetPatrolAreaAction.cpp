@@ -10,10 +10,12 @@
 #include "StaffSetPatrolAreaAction.h"
 
 #include "../Diagnostic.h"
+#include "../GameState.h"
 #include "../entity/EntityRegistry.h"
 #include "../entity/PatrolArea.h"
 #include "../entity/Peep.h"
 #include "../entity/Staff.h"
+#include "../world/Map.h"
 
 namespace OpenRCT2::GameActions
 {
@@ -60,7 +62,7 @@ namespace OpenRCT2::GameActions
 
     Result StaffSetPatrolAreaAction::QueryExecute(bool executing) const
     {
-        auto staff = TryGetEntity<Staff>(_spriteId);
+        auto staff = getGameState().entities.TryGetEntity<Staff>(_spriteId);
         if (staff == nullptr)
         {
             LOG_ERROR("Staff entity not found for spriteID %u", _spriteId.ToUnderlying());

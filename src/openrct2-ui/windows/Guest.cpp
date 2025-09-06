@@ -41,6 +41,7 @@
 #include <openrct2/util/Util.h>
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/Footpath.h>
+#include <openrct2/world/MapSelection.h>
 #include <openrct2/world/Park.h>
 
 namespace OpenRCT2::Ui::Windows
@@ -426,7 +427,7 @@ namespace OpenRCT2::Ui::Windows
     private:
         Guest* GetGuest()
         {
-            auto guest = GetEntity<Guest>(EntityId::FromUnderlying(number));
+            auto guest = getGameState().entities.GetEntity<Guest>(EntityId::FromUnderlying(number));
             if (guest == nullptr)
             {
                 Close();
@@ -653,7 +654,7 @@ namespace OpenRCT2::Ui::Windows
                     nullLoc.SetNull();
                     GameActions::PeepPickupAction pickupAction{ GameActions::PeepPickupType::Pickup,
                                                                 EntityId::FromUnderlying(number), nullLoc,
-                                                                NetworkGetCurrentPlayerId() };
+                                                                Network::GetCurrentPlayerId() };
                     pickupAction.SetCallback(
                         [peepnum = number](const GameActions::GameAction* ga, const GameActions::Result* result) {
                             if (result->Error != GameActions::Status::Ok)
@@ -922,7 +923,7 @@ namespace OpenRCT2::Ui::Windows
             _beingWatchedTimer++;
 
             // Disable peep watching thought for multiplayer as it's client specific
-            if (NetworkGetMode() == NETWORK_MODE_NONE)
+            if (Network::GetMode() == Network::Mode::none)
             {
                 // Create the "I have the strangest feeling I am being watched thought"
                 if (_beingWatchedTimer >= 3840)
@@ -1023,7 +1024,7 @@ namespace OpenRCT2::Ui::Windows
             GameActions::PeepPickupAction pickupAction{ GameActions::PeepPickupType::Place,
                                                         EntityId::FromUnderlying(number),
                                                         { destCoords, tileElement->GetBaseZ() },
-                                                        NetworkGetCurrentPlayerId() };
+                                                        Network::GetCurrentPlayerId() };
             pickupAction.SetCallback([](const GameActions::GameAction* ga, const GameActions::Result* result) {
                 if (result->Error != GameActions::Status::Ok)
                     return;
@@ -1041,7 +1042,7 @@ namespace OpenRCT2::Ui::Windows
             GameActions::PeepPickupAction pickupAction{ GameActions::PeepPickupType::Cancel,
                                                         EntityId::FromUnderlying(number),
                                                         { _pickedPeepX, 0, 0 },
-                                                        NetworkGetCurrentPlayerId() };
+                                                        Network::GetCurrentPlayerId() };
             GameActions::Execute(&pickupAction);
         }
 

@@ -34,6 +34,7 @@
 #include "../ride/Track.h"
 #include "../ride/TrackData.h"
 #include "Location.hpp"
+#include "Map.h"
 #include "MapAnimation.h"
 #include "tile_element/BannerElement.h"
 #include "tile_element/EntranceElement.h"
@@ -140,7 +141,7 @@ void FootpathRemoveLitter(const CoordsXYZ& footpathPos)
     for (auto* litter : removals)
     {
         litter->Invalidate();
-        EntityRemove(litter);
+        getGameState().entities.EntityRemove(litter);
     }
 }
 
@@ -1291,7 +1292,7 @@ static TileElement* FootpathCanBeWide(const CoordsXYZ& footpathPos)
  */
 void FootpathUpdatePathWideFlags(const CoordsXY& footpathPos)
 {
-    if (MapIsLocationAtEdge(footpathPos))
+    if (MapIsEdge(footpathPos))
         return;
 
     FootpathClearWide(footpathPos);

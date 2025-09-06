@@ -64,6 +64,7 @@
 #include "../ui/WindowManager.h"
 #include "../util/Util.h"
 #include "../windows/Intent.h"
+#include "../world/Map.h"
 #include "../world/Park.h"
 #include "../world/Scenery.h"
 #include "Viewport.h"
@@ -146,6 +147,7 @@ static void ConsoleCommandEcho(InteractiveConsole& console, const arguments_t& a
 
 static void ConsoleCommandRides(InteractiveConsole& console, const arguments_t& argv)
 {
+    auto& gameState = getGameState();
     if (!argv.empty())
     {
         if (argv[0] == "list")
@@ -204,7 +206,7 @@ static void ConsoleCommandRides(InteractiveConsole& console, const arguments_t& 
                         RideId::FromUnderlying(ride_index), GameActions::RideSetSetting::RideType, type);
                     if (res == kMoney64Undefined)
                     {
-                        if (!getGameState().cheats.allowArbitraryRideTypeChanges)
+                        if (!gameState.cheats.allowArbitraryRideTypeChanges)
                         {
                             console.WriteFormatLine(
                                 "That didn't work. Try enabling the 'Allow arbitrary ride type changes' cheat");
@@ -276,8 +278,9 @@ static void ConsoleCommandRides(InteractiveConsole& console, const arguments_t& 
                     {
                         for (int32_t i = 0; i < ride->numTrains; ++i)
                         {
-                            for (Vehicle* vehicle = GetEntity<Vehicle>(ride->vehicles[i]); vehicle != nullptr;
-                                 vehicle = GetEntity<Vehicle>(vehicle->next_vehicle_on_train))
+                            for (Vehicle* vehicle = gameState.entities.GetEntity<Vehicle>(ride->vehicles[i]);
+                                 vehicle != nullptr;
+                                 vehicle = gameState.entities.GetEntity<Vehicle>(vehicle->next_vehicle_on_train))
                             {
                                 vehicle->mass = mass;
                             }
@@ -457,6 +460,7 @@ static void ConsoleCommandRides(InteractiveConsole& console, const arguments_t& 
 
 static void ConsoleCommandStaff(InteractiveConsole& console, const arguments_t& argv)
 {
+    auto& gameState = getGameState();
     if (!argv.empty())
     {
         if (argv[0] == "list")
@@ -496,7 +500,7 @@ static void ConsoleCommandStaff(InteractiveConsole& console, const arguments_t& 
 
                 if (int_valid[0] && int_valid[1])
                 {
-                    Peep* peep = GetEntity<Peep>(EntityId::FromUnderlying(int_val[0]));
+                    Peep* peep = gameState.entities.GetEntity<Peep>(EntityId::FromUnderlying(int_val[0]));
                     if (peep != nullptr)
                     {
                         peep->Energy = int_val[1];
@@ -515,7 +519,7 @@ static void ConsoleCommandStaff(InteractiveConsole& console, const arguments_t& 
                     console.WriteLineError("Invalid staff ID");
                     return;
                 }
-                auto staff = GetEntity<Staff>(EntityId::FromUnderlying(int_val[0]));
+                auto staff = gameState.entities.GetEntity<Staff>(EntityId::FromUnderlying(int_val[0]));
                 if (staff == nullptr)
                 {
                     console.WriteLineError("Invalid staff ID");
@@ -711,15 +715,15 @@ static void ConsoleCommandGet(InteractiveConsole& console, const arguments_t& ar
         }
         else if (argv[0] == "cheat_sandbox_mode")
         {
-            console.WriteFormatLine("cheat_sandbox_mode %d", getGameState().cheats.sandboxMode);
+            console.WriteFormatLine("cheat_sandbox_mode %d", gameState.cheats.sandboxMode);
         }
         else if (argv[0] == "cheat_disable_clearance_checks")
         {
-            console.WriteFormatLine("cheat_disable_clearance_checks %d", getGameState().cheats.disableClearanceChecks);
+            console.WriteFormatLine("cheat_disable_clearance_checks %d", gameState.cheats.disableClearanceChecks);
         }
         else if (argv[0] == "cheat_disable_support_limits")
         {
-            console.WriteFormatLine("cheat_disable_support_limits %d", getGameState().cheats.disableSupportLimits);
+            console.WriteFormatLine("cheat_disable_support_limits %d", gameState.cheats.disableSupportLimits);
         }
         else if (argv[0] == "current_rotation")
         {
@@ -961,7 +965,7 @@ static void ConsoleCommandSet(InteractiveConsole& console, const arguments_t& ar
         }
         else if (varName == "cheat_sandbox_mode" && InvalidArguments(&invalidArgs, int_valid[0]))
         {
-            if (getGameState().cheats.sandboxMode != (int_val[0] != 0))
+            if (gameState.cheats.sandboxMode != (int_val[0] != 0))
             {
                 ConsoleSetVariableAction<GameActions::CheatSetAction>(
                     console, varName, CheatType::SandboxMode, int_val[0] != 0);
@@ -973,7 +977,7 @@ static void ConsoleCommandSet(InteractiveConsole& console, const arguments_t& ar
         }
         else if (varName == "cheat_disable_clearance_checks" && InvalidArguments(&invalidArgs, int_valid[0]))
         {
-            if (getGameState().cheats.disableClearanceChecks != (int_val[0] != 0))
+            if (gameState.cheats.disableClearanceChecks != (int_val[0] != 0))
             {
                 ConsoleSetVariableAction<GameActions::CheatSetAction>(
                     console, varName, CheatType::DisableClearanceChecks, int_val[0] != 0);
@@ -985,7 +989,7 @@ static void ConsoleCommandSet(InteractiveConsole& console, const arguments_t& ar
         }
         else if (varName == "cheat_disable_support_limits" && InvalidArguments(&invalidArgs, int_valid[0]))
         {
-            if (getGameState().cheats.disableSupportLimits != (int_val[0] != 0))
+            if (gameState.cheats.disableSupportLimits != (int_val[0] != 0))
             {
                 ConsoleSetVariableAction<GameActions::CheatSetAction>(
                     console, varName, CheatType::DisableSupportLimits, int_val[0] != 0);
@@ -1172,7 +1176,7 @@ static void ConsoleCommandOpen(InteractiveConsole& console, const arguments_t& a
         bool invalidTitle = false;
         if (argv[0] == "object_selection" && InvalidArguments(&invalidTitle, !title))
         {
-            if (NetworkGetMode() != NETWORK_MODE_NONE)
+            if (Network::GetMode() != Network::Mode::none)
             {
                 console.WriteLineError("Cannot open this window in multiplayer mode.");
             }
@@ -1186,7 +1190,7 @@ static void ConsoleCommandOpen(InteractiveConsole& console, const arguments_t& a
         }
         else if (argv[0] == "inventions_list" && InvalidArguments(&invalidTitle, !title))
         {
-            if (NetworkGetMode() != NETWORK_MODE_NONE)
+            if (Network::GetMode() != Network::Mode::none)
             {
                 console.WriteLineError("Cannot open this window in multiplayer mode.");
             }
@@ -1226,7 +1230,7 @@ static void ConsoleCommandRemoveUnusedObjects(InteractiveConsole& console, [[may
 
 static void ConsoleCommandRemoveFloatingObjects(InteractiveConsole& console, const arguments_t& argv)
 {
-    uint16_t result = RemoveFloatingEntities();
+    uint16_t result = getGameState().entities.RemoveFloatingEntities();
     console.WriteFormatLine("Removed %d flying objects", result);
 }
 
@@ -1239,7 +1243,8 @@ static void ConsoleCommandShowLimits(InteractiveConsole& console, [[maybe_unused
     int32_t spriteCount = 0;
     for (int32_t i = 0; i < static_cast<uint8_t>(EntityType::Count); ++i)
     {
-        spriteCount += GetEntityListCount(EntityType(i));
+        auto& gameState = getGameState();
+        spriteCount += gameState.entities.GetEntityListCount(EntityType(i));
     }
 
     auto bannerCount = GetNumBanners();
@@ -1357,8 +1362,8 @@ static void ConsoleCommandSavePark([[maybe_unused]] InteractiveConsole& console,
 
 static void ConsoleCommandSay(InteractiveConsole& console, const arguments_t& argv)
 {
-    if (NetworkGetMode() == NETWORK_MODE_NONE || NetworkGetStatus() != NETWORK_STATUS_CONNECTED
-        || NetworkGetAuthstatus() != NetworkAuth::Ok)
+    if (Network::GetMode() == Network::Mode::none || Network::GetStatus() != Network::Status::connected
+        || Network::GetAuthstatus() != Network::Auth::ok)
     {
         console.WriteFormatLine("This command only works in multiplayer mode.");
         return;
@@ -1366,7 +1371,7 @@ static void ConsoleCommandSay(InteractiveConsole& console, const arguments_t& ar
 
     if (!argv.empty())
     {
-        NetworkSendChat(argv[0].c_str());
+        Network::SendChat(argv[0].c_str());
         return;
     }
 
@@ -1375,7 +1380,7 @@ static void ConsoleCommandSay(InteractiveConsole& console, const arguments_t& ar
 
 static void ConsoleCommandReplayStartRecord(InteractiveConsole& console, const arguments_t& argv)
 {
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         console.WriteFormatLine("This command is currently not supported in multiplayer mode.");
         return;
@@ -1418,7 +1423,7 @@ static void ConsoleCommandReplayStartRecord(InteractiveConsole& console, const a
 
 static void ConsoleCommandReplayStopRecord(InteractiveConsole& console, const arguments_t& argv)
 {
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         console.WriteFormatLine("This command is currently not supported in multiplayer mode.");
         return;
@@ -1449,7 +1454,7 @@ static void ConsoleCommandReplayStopRecord(InteractiveConsole& console, const ar
 
 static void ConsoleCommandReplayStart(InteractiveConsole& console, const arguments_t& argv)
 {
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         console.WriteFormatLine("This command is currently not supported in multiplayer mode.");
         return;
@@ -1487,7 +1492,7 @@ static void ConsoleCommandReplayStart(InteractiveConsole& console, const argumen
 
 static void ConsoleCommandReplayStop(InteractiveConsole& console, const arguments_t& argv)
 {
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         console.WriteFormatLine("This command is currently not supported in multiplayer mode.");
         return;
@@ -1502,7 +1507,7 @@ static void ConsoleCommandReplayStop(InteractiveConsole& console, const argument
 
 static void ConsoleCommandReplayNormalise(InteractiveConsole& console, const arguments_t& argv)
 {
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         console.WriteFormatLine("This command is currently not supported in multiplayer mode.");
     }

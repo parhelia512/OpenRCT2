@@ -27,6 +27,8 @@
 #include "../../paint/Paint.h"
 #include "../../profiling/Profiling.h"
 #include "../../ride/TrackDesign.h"
+#include "../../world/Map.h"
+#include "../../world/MapSelection.h"
 #include "../../world/tile_element/Slope.h"
 #include "../../world/tile_element/SurfaceElement.h"
 #include "../../world/tile_element/TileElement.h"
@@ -879,7 +881,7 @@ std::optional<colour_t> GetPatrolAreaTileColour(const CoordsXY& pos)
     else
     {
         auto& staffId = std::get<EntityId>(patrolAreaToRender);
-        auto* staff = GetEntity<Staff>(staffId);
+        auto* staff = getGameState().entities.GetEntity<Staff>(staffId);
         if (staff != nullptr)
         {
             if (staff->IsPatrolAreaSet(pos))

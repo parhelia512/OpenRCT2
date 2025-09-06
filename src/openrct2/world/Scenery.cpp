@@ -34,6 +34,7 @@
 #include "../object/SmallSceneryEntry.h"
 #include "../object/WallSceneryEntry.h"
 #include "Footpath.h"
+#include "Map.h"
 #include "Park.h"
 #include "tile_element/PathElement.h"
 #include "tile_element/SmallSceneryElement.h"
@@ -133,7 +134,7 @@ void SceneryUpdateTile(const CoordsXY& sceneryPos)
     {
         // Ghosts are purely this-client-side and should not cause any interaction,
         // as that may lead to a desync.
-        if (NetworkGetMode() != NETWORK_MODE_NONE)
+        if (Network::GetMode() != Network::Mode::none)
         {
             if (tileElement->IsGhost())
                 continue;

@@ -50,6 +50,8 @@
 #include <openrct2/windows/Intent.h>
 #include <openrct2/world/ConstructionClearance.h>
 #include <openrct2/world/Entrance.h>
+#include <openrct2/world/Map.h>
+#include <openrct2/world/MapSelection.h>
 #include <openrct2/world/Park.h>
 #include <openrct2/world/tile_element/EntranceElement.h>
 #include <openrct2/world/tile_element/PathElement.h>
@@ -2350,7 +2352,7 @@ namespace OpenRCT2::Ui::Windows
             }
             OpenRCT2::Audio::Play3D(OpenRCT2::Audio::SoundId::PlaceItem, trackPos);
 
-            if (NetworkGetMode() != NETWORK_MODE_NONE)
+            if (Network::GetMode() != Network::Mode::none)
             {
                 _currentTrackSelectionFlags.set(TrackSelectionFlag::trackPlaceActionQueued);
             }
@@ -4721,7 +4723,7 @@ namespace OpenRCT2::Ui::Windows
                     type = TrackElemType::BeginStation;
                 }
             }
-            if (NetworkGetMode() == NETWORK_MODE_CLIENT)
+            if (Network::GetMode() == Network::Mode::client)
             {
                 // rideConstructionState needs to be set again to the proper value, this only affects the client
                 _rideConstructionState = RideConstructionState::Selected;

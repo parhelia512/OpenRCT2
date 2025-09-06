@@ -21,6 +21,7 @@
 #include "../ride/TrackDesign.h"
 #include "../world/Banner.h"
 #include "../world/ConstructionClearance.h"
+#include "../world/Map.h"
 #include "../world/MapAnimation.h"
 #include "../world/Wall.h"
 #include "../world/tile_element/LargeSceneryElement.h"
@@ -499,7 +500,7 @@ namespace OpenRCT2::GameActions
         const WallSceneryEntry* wall, int32_t z0, int32_t z1, bool* wallAcrossTrack) const
     {
         *wallAcrossTrack = false;
-        if (MapIsLocationAtEdge(_loc))
+        if (MapIsEdge(_loc))
         {
             return Result(Status::InvalidParameters, STR_CANT_BUILD_THIS_HERE, STR_OFF_EDGE_OF_MAP);
         }
